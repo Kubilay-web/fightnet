@@ -1,0 +1,1676 @@
+// FIGHTNET — DACH Dövüş Sporları Platformu
+// Prisma + MongoDB
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ATHLETE
+  COACH
+  GYM_OWNER
+  ORGANIZER
+  MODERATOR
+  ADMIN
+}
+
+/// Doküman §4.5 — 3 seviyeli doğrulama sistemi
+enum VerificationLevel {
+  LEVEL_0 // E-posta onaylı
+  LEVEL_1 // Kimlik + selfie (KYC)
+  LEVEL_2 // Durum doğrulanmış (sporcu / antrenör / salon)
+}
+
+enum Discipline {
+  MMA
+  BOXING
+  BJJ
+  MUAY_THAI
+  KICKBOXING
+  WRESTLING
+  JUDO
+  KARATE
+  SAMBO
+  TAEKWONDO
+  GRAPPLING
+  KRAV_MAGA
+}
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  SEMI_PRO
+  PRO
+}
+
+enum BeltRank {
+  WHITE
+  BLUE
+  PURPLE
+  BROWN
+  BLACK
+  YELLOW
+  ORANGE
+  GREEN
+  RED
+  NONE
+}
+
+/// Doküman §8.3 — Görünürlük seviyeleri
+enum Visibility {
+  PUBLIC
+  COMMUNITY
+  GYM
+  COACH
+  ORGANIZER
+  FEDERATION
+  PRIVATE
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum VouchStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  REJECTED
+}
+
+enum EventType {
+  AMATEUR
+  PROFESSIONAL
+  TOURNAMENT
+  SEMINAR
+  OPEN_MAT
+  SMOKER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  LIVE
+  FINISHED
+  CANCELLED
+}
+
+enum FightStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  CANCELLED
+  NO_CONTEST
+}
+
+enum FightResultMethod {
+  KO
+  TKO
+  SUBMISSION
+  DECISION_UNANIMOUS
+  DECISION_SPLIT
+  DECISION_MAJORITY
+  DQ
+  DRAW
+  NO_CONTEST
+  POINTS
+}
+
+enum Corner {
+  RED
+  BLUE
+}
+
+enum SparringStatus {
+  OPEN
+  MATCHED
+  COMPLETED
+  CANCELLED
+}
+
+enum SparringRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum BookingType {
+  TRIAL
+  DROP_IN
+  CLASS
+  PRIVATE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ATTENDED
+  NO_SHOW
+  CANCELLED
+}
+
+enum PostType {
+  VIDEO
+  IMAGE
+  TEXT
+}
+
+enum ModerationState {
+  PENDING
+  APPROVED
+  FLAGGED
+  REMOVED
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  VIOLENCE
+  SEXUAL_CONTENT
+  DOPING
+  WEIGHT_CUT
+  UNSAFE_SPARRING
+  FAKE_PROFILE
+  MINOR_SAFETY
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum NotificationType {
+  FOLLOW
+  SPARRING_REQUEST
+  SPARRING_ACCEPTED
+  LIVESCORE
+  VOUCH
+  VERIFICATION
+  BOOKING
+  COMMENT
+  LIKE
+  SUBSCRIPTION
+  SYSTEM
+  EVENT
+  MESSAGE
+}
+
+enum SubscriptionTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  EXPIRED
+}
+
+enum MembershipPlan {
+  FOUNDER // 50 €/ay ömür boyu
+  STANDARD // 100-150 €/ay
+  TRIAL
+}
+
+enum GymStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CLAIMED
+}
+
+enum ProductCondition {
+  NEW
+  LIKE_NEW
+  USED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum WaitlistStatus {
+  PENDING
+  INVITED
+  CONVERTED
+  UNSUBSCRIBED
+}
+
+enum SponsorshipStatus {
+  OPEN
+  APPLIED
+  ACCEPTED
+  REJECTED
+  CLOSED
+}
+
+/// §4.4 — Müsabaka kayıt aracılığı
+enum RegistrationStatus {
+  PENDING
+  ACCEPTED
+  WAITLISTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// §11.5 — DSA itiraz mekanizması
+enum AppealStatus {
+  OPEN
+  UPHELD // moderasyon kararı korundu
+  OVERTURNED // karar geri alındı
+  DISMISSED
+}
+
+// ---------------------------------------------------------------------------
+// KULLANICI & KİMLİK
+// ---------------------------------------------------------------------------
+
+model User {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  email    String  @unique
+  password String?
+  username String  @unique
+  name     String
+  slug     String  @unique
+
+  role         Role              @default(USER)
+  roles        Role[]            @default([])
+  verification VerificationLevel @default(LEVEL_0)
+
+  emailVerified   DateTime?
+  emailToken      String?
+  resetToken      String?
+  resetTokenExp   DateTime?
+  twoFactorSecret String?
+  mfaEnabled      Boolean   @default(false)
+
+  // Profil
+  avatarUrl   String?
+  avatarId    String? // Cloudinary public_id
+  coverUrl    String?
+  coverId     String?
+  bio         String?
+  birthDate   DateTime?
+  isMinor     Boolean   @default(false)
+  guardianEmail String?
+  guardianConsent Boolean @default(false)
+  // §11.1 — ebeveyn onayı e-posta akışı
+  guardianToken     String?
+  guardianTokenExp  DateTime?
+  guardianConsentAt DateTime?
+  // §5.7 — granüler çerez/izin kaydı
+  consent    Json?
+  consentAt  DateTime?
+  nationality String?
+  city        String?
+  country     String    @default("DE")
+  postalCode  String?
+  lat         Float?
+  lng         Float?
+  heightCm    Int?
+  reachCm     Int?
+  stance      String?
+  phone       String?
+  website     String?
+  socials     Json?
+
+  // Sayaçlar (denormalize — okuma hızı için)
+  followerCount  Int @default(0)
+  followingCount Int @default(0)
+  postCount      Int @default(0)
+  trainingStreak Int @default(0)
+  longestStreak  Int @default(0)
+  totalTrainings Int @default(0)
+  profileScore   Int @default(0) // %  tamamlanma
+
+  // Tercihler
+  locale        String     @default("de")
+  theme         String     @default("dark")
+  visibility    Visibility @default(PUBLIC)
+  pushEnabled   Boolean    @default(true)
+  emailEnabled  Boolean    @default(true)
+  pushTokens    String[]   @default([])
+
+  // Durum
+  isActive     Boolean   @default(true)
+  isBanned     Boolean   @default(false)
+  banReason    String?
+  bannedUntil  DateTime?
+  isFounder    Boolean   @default(false)
+  founderSince DateTime?
+  betaCodeUsed String?
+  lastActiveAt DateTime?
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // İlişkiler
+  sportProfiles       SportProfile[]
+  trainingLogs        TrainingLog[]
+  gymMemberships      GymMembership[]
+  ownedGyms           Gym[]                  @relation("GymOwner")
+  coachAt             GymCoach[]
+  verificationReqs    VerificationRequest[]
+  vouchesGiven        Vouch[]                @relation("VouchCoach")
+  vouchesReceived     Vouch[]                @relation("VouchAthlete")
+  sparringListings    SparringListing[]
+  sparringRequests    SparringRequest[]      @relation("SparringSender")
+  sparringReviewsMade SparringReview[]       @relation("ReviewAuthor")
+  sparringReviewsGot  SparringReview[]       @relation("ReviewTarget")
+  followers           Follow[]               @relation("Following")
+  following           Follow[]               @relation("Follower")
+  posts               Post[]
+  postLikes           PostLike[]
+  postComments        PostComment[]
+  forumThreads        ForumThread[]
+  forumPosts          ForumPost[]
+  notifications       Notification[]         @relation("NotifUser")
+  notificationsSent   Notification[]         @relation("NotifActor")
+  bookings            Booking[]
+  organizedEvents     Event[]                @relation("EventOrganizer")
+  fightsRed           Fight[]                @relation("FightRed")
+  fightsBlue          Fight[]                @relation("FightBlue")
+  liveComments        LiveComment[]
+  creatorTiers        CreatorTier[]
+  subscriptions       CreatorSubscription[]  @relation("Subscriber")
+  subscribers         CreatorSubscription[]  @relation("Creator")
+  creatorPosts        CreatorPost[]
+  sponsorApplications SponsorApplication[]
+  products            Product[]
+  orders              Order[]
+  reportsMade         Report[]               @relation("Reporter")
+  reportsAgainst      Report[]               @relation("ReportedUser")
+  auditLogs           AuditLog[]
+  sessions            Session[]
+  messagesSent        Message[]
+  conversations       ConversationMember[]
+  passportDocs        PassportDocument[]
+  spotlights          Spotlight[]
+  gymReviews          GymReview[]
+  eventRegistrations  EventRegistration[]
+  pushSubscriptions   PushSubscription[]
+  appeals             Appeal[]
+
+  @@index([role])
+  @@index([verification])
+  @@index([city, country])
+  @@index([followerCount(sort: Desc)])
+  @@index([lastActiveAt(sort: Desc)])
+  @@index([isActive, isBanned])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String   @unique
+  userAgent    String?
+  ip           String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// Çoklu spor profili — §4.2
+model SportProfile {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  discipline  Discipline
+  isPrimary   Boolean    @default(false)
+  level       SkillLevel @default(BEGINNER)
+  belt        BeltRank   @default(NONE)
+  stripes     Int        @default(0)
+  weightClass String?
+  weightKg    Float?
+  yearsActive Int        @default(0)
+  isPro       Boolean    @default(false)
+
+  // Müsabaka bilançosu
+  wins       Int @default(0)
+  losses     Int @default(0)
+  draws      Int @default(0)
+  noContests Int @default(0)
+  koWins     Int @default(0)
+  subWins    Int @default(0)
+  decWins    Int @default(0)
+
+  achievements String[] @default([])
+  visibility   Visibility @default(PUBLIC)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, discipline])
+  @@index([discipline, level])
+  @@index([discipline, weightClass])
+  @@map("sport_profiles")
+}
+
+/// §4.5 — KYC ve durum doğrulama talepleri
+model VerificationRequest {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  targetLevel VerificationLevel
+  status      VerificationStatus @default(PENDING)
+  claimedRole Role?
+
+  idDocUrl   String?
+  idDocId    String?
+  selfieUrl  String?
+  selfieId   String?
+  proofUrls  String[] @default([])
+  proofIds   String[] @default([])
+  note       String?
+
+  reviewerId String?   @db.ObjectId
+  reviewNote String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("verification_requests")
+}
+
+/// §4.5 — Antrenör kefaleti (max 20 öğrenci)
+model Vouch {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  coachId   String @db.ObjectId
+  coach     User   @relation("VouchCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId String @db.ObjectId
+  athlete   User   @relation("VouchAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+
+  status     VouchStatus @default(PENDING)
+  gymId      String?     @db.ObjectId
+  discipline Discipline?
+  note       String?
+  revokedAt  DateTime?
+  revokeNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([coachId, athleteId])
+  @@index([coachId, status])
+  @@index([athleteId, status])
+  @@map("vouches")
+}
+
+// ---------------------------------------------------------------------------
+// SALONLAR
+// ---------------------------------------------------------------------------
+
+model Gym {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  slug    String @unique
+  name    String
+  ownerId String? @db.ObjectId
+  owner   User?   @relation("GymOwner", fields: [ownerId], references: [id])
+
+  description String?
+  disciplines Discipline[] @default([])
+  logoUrl     String?
+  logoId      String?
+  coverUrl    String?
+  coverId     String?
+  gallery     Json? // [{url, publicId}]
+
+  // Konum
+  street     String?
+  city       String
+  postalCode String?
+  country    String  @default("DE")
+  lat        Float?
+  lng        Float?
+
+  phone   String?
+  email   String?
+  website String?
+  socials Json?
+
+  openingHours Json? // {mon:[{open,close}], ...}
+  amenities    String[] @default([])
+
+  status       GymStatus      @default(PENDING)
+  isVerified   Boolean        @default(false)
+  isFounder    Boolean        @default(false) // Kurucu Salon rozeti
+  isHalo       Boolean        @default(false) // §13 Halo salon
+  plan         MembershipPlan @default(TRIAL)
+  planPrice    Float          @default(0)
+  planSince    DateTime?
+  trialEnabled Boolean        @default(true)
+  dropInPrice  Float?
+
+  memberCount Int   @default(0)
+  ratingAvg   Float @default(0)
+  ratingCount Int   @default(0)
+  viewCount   Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships GymMembership[]
+  coaches     GymCoach[]
+  classes     GymClass[]
+  bookings    Booking[]
+  events      Event[]
+  reviews     GymReview[]
+
+  @@index([city, country])
+  @@index([status, isVerified])
+  @@index([disciplines])
+  @@index([lat, lng])
+  @@index([isHalo])
+  @@map("gyms")
+}
+
+model GymMembership {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  gymId  String @db.ObjectId
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isPrimary Boolean   @default(false)
+  since     DateTime  @default(now())
+  until     DateTime?
+  isActive  Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([gymId, userId])
+  @@index([userId, isActive])
+  @@map("gym_memberships")
+}
+
+model GymCoach {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  gymId  String @db.ObjectId
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String?
+  disciplines Discipline[] @default([])
+  isHead      Boolean      @default(false)
+  licenseUrl  String?
+  licenseId   String?
+  verified    Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([gymId, userId])
+  @@index([userId])
+  @@map("gym_coaches")
+}
+
+model GymClass {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  gymId String @db.ObjectId
+  gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  name        String
+  discipline  Discipline
+  level       SkillLevel @default(BEGINNER)
+  description String?
+  coachName   String?
+
+  weekday   Int // 0-6
+  startTime String // "18:30"
+  endTime   String
+  capacity  Int    @default(20)
+  price     Float  @default(0)
+  isTrialOk Boolean @default(true)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([gymId, weekday])
+  @@index([discipline, isActive])
+  @@map("gym_classes")
+}
+
+model Booking {
+  id      String    @id @default(auto()) @map("_id") @db.ObjectId
+  gymId   String    @db.ObjectId
+  gym     Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  classId String?   @db.ObjectId
+  class   GymClass? @relation(fields: [classId], references: [id])
+  userId  String    @db.ObjectId
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      BookingType   @default(TRIAL)
+  status    BookingStatus @default(PENDING)
+  date      DateTime
+  note      String?
+  price     Float         @default(0)
+  // Deneme antrenmanı akışı — §4.2
+  experience String?
+  goals      String?
+  contactPhone String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gymId, date])
+  @@index([userId, status])
+  @@index([status, date])
+  @@map("bookings")
+}
+
+model GymReview {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  gymId  String @db.ObjectId
+  gym    Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rating  Int
+  comment String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([gymId, userId])
+  @@index([gymId])
+  @@map("gym_reviews")
+}
+
+// ---------------------------------------------------------------------------
+// ANTRENMAN GÜNLÜĞÜ
+// ---------------------------------------------------------------------------
+
+model TrainingLog {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date       DateTime
+  discipline Discipline
+  durationMin Int       @default(60)
+  intensity  Int        @default(3) // 1-5
+  type       String? // teknik, sparring, kondisyon, kuvvet
+  gymId      String?    @db.ObjectId
+  techniques String[]   @default([])
+  rounds     Int?
+  caloriesKcal Int?
+  notes      String?
+  mood       Int? // 1-5
+  weightKg   Float?
+  visibility Visibility @default(PRIVATE)
+
+  // Çevrimdışı senkron — §5.2
+  clientId  String?
+  syncedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date(sort: Desc)])
+  @@index([userId, discipline])
+  // Çevrimdışı senkron tekilliği: uygulama katmanında kontrol edilir.
+  // MongoDB'de null değerler unique indekste çakışacağı için burada
+  // yalnızca arama indeksi tanımlanır.
+  @@index([userId, clientId])
+  @@map("training_logs")
+}
+
+// ---------------------------------------------------------------------------
+// SPARRING
+// ---------------------------------------------------------------------------
+
+model SparringListing {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  discipline  Discipline
+  level       SkillLevel
+  weightKg    Float?
+  weightTolerance Float @default(5)
+  city        String
+  postalCode  String?
+  lat         Float?
+  lng         Float?
+  radiusKm    Int      @default(25)
+  gymId       String?  @db.ObjectId
+  availability String[] @default([]) // ["MON_EVENING", ...]
+  dateFrom    DateTime?
+  dateTo      DateTime?
+  intensity   String   @default("MEDIUM") // LIGHT | MEDIUM | HARD
+  note        String?
+  genderPref  String?
+  minAge      Int?
+  maxAge      Int?
+
+  status    SparringStatus @default(OPEN)
+  viewCount Int            @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requests SparringRequest[]
+
+  @@index([status, discipline, city])
+  @@index([userId])
+  @@index([lat, lng])
+  @@index([createdAt(sort: Desc)])
+  @@map("sparring_listings")
+}
+
+model SparringRequest {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  listingId String          @db.ObjectId
+  listing   SparringListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  senderId  String          @db.ObjectId
+  sender    User            @relation("SparringSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String         @db.ObjectId
+
+  message      String?
+  status       SparringRequestStatus @default(PENDING)
+  proposedDate DateTime?
+  // Sparring sözleşmesi onayı — §11.2
+  waiverAccepted Boolean @default(false)
+  waiverAcceptedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reviews SparringReview[]
+
+  @@unique([listingId, senderId])
+  @@index([receiverId, status])
+  @@index([senderId, status])
+  @@map("sparring_requests")
+}
+
+/// §11.2 — Sparring güvenliği: her sparring sonrası değerlendirme
+model SparringReview {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  requestId String           @db.ObjectId
+  request   SparringRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorId  String           @db.ObjectId
+  author    User             @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String           @db.ObjectId
+  target    User             @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  safety      Int // 1-5 — kontrollü mü
+  technique   Int
+  punctuality Int
+  wouldRepeat Boolean @default(true)
+  comment     String?
+  flagUnsafe  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([requestId, authorId])
+  @@index([targetId])
+  @@map("sparring_reviews")
+}
+
+// ---------------------------------------------------------------------------
+// ETKİNLİK & LIVESCORE
+// ---------------------------------------------------------------------------
+
+model Event {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String @unique
+  title       String
+  organizerId String @db.ObjectId
+  organizer   User   @relation("EventOrganizer", fields: [organizerId], references: [id])
+  gymId       String? @db.ObjectId
+  gym         Gym?    @relation(fields: [gymId], references: [id])
+
+  description String?
+  type        EventType   @default(AMATEUR)
+  status      EventStatus @default(DRAFT)
+  disciplines Discipline[] @default([])
+
+  posterUrl String?
+  posterId  String?
+
+  startsAt DateTime
+  endsAt   DateTime?
+  doorsAt  DateTime?
+
+  venueName  String?
+  street     String?
+  city       String
+  postalCode String?
+  country    String  @default("DE")
+  lat        Float?
+  lng        Float?
+
+  ticketUrl    String?
+  ticketPrice  Float?
+  capacity     Int?
+  streamUrl    String?
+  isPPV        Boolean @default(false)
+  ppvPrice     Float?
+  registrationOpen Boolean @default(false)
+  registrationDeadline DateTime?
+
+  viewCount     Int @default(0)
+  followerCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fights        Fight[]
+  liveComments  LiveComment[]
+  registrations EventRegistration[]
+
+  @@index([status, startsAt])
+  @@index([city, startsAt])
+  @@index([disciplines])
+  @@index([startsAt(sort: Desc)])
+  @@map("events")
+}
+
+model Fight {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  order       Int        @default(0)
+  isMainEvent Boolean    @default(false)
+  isTitleFight Boolean   @default(false)
+  discipline  Discipline
+  weightClass String?
+  rounds      Int        @default(3)
+  roundMinutes Int       @default(3)
+
+  redId   String? @db.ObjectId
+  red     User?   @relation("FightRed", fields: [redId], references: [id])
+  redName String
+  redRecord String?
+  redImage String?
+
+  blueId   String? @db.ObjectId
+  blue     User?   @relation("FightBlue", fields: [blueId], references: [id])
+  blueName String
+  blueRecord String?
+  blueImage String?
+
+  status       FightStatus        @default(SCHEDULED)
+  winnerCorner Corner?
+  method       FightResultMethod?
+  endRound     Int?
+  endTime      String?
+  notes        String?
+
+  // Canlı skor durumu
+  currentRound Int      @default(0)
+  liveClock    String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  liveComments LiveComment[]
+
+  @@index([eventId, order])
+  @@index([status])
+  @@index([redId])
+  @@index([blueId])
+  @@map("fights")
+}
+
+/// §4.4 — Müsabaka kayıt aracılığı: sporcu doğrudan turnuvaya kaydolur
+model EventRegistration {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String @db.ObjectId
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  discipline  Discipline
+  weightClass String?
+  weightKg    Float?
+  record      String? // "12-3-1"
+  coachName   String?
+  gymName     String?
+  emergency   String? // acil durumda aranacak kişi
+
+  // Onaylar — organizatöre karşı beyan
+  medicalConfirmed Boolean @default(false)
+  waiverAccepted   Boolean @default(false)
+  // §11.1 — reşit olmayan katılımcı için veli onayı zorunlu
+  guardianApproved Boolean @default(false)
+
+  note       String?
+  status     RegistrationStatus @default(PENDING)
+  reviewNote String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([eventId, status])
+  @@index([userId, status])
+  @@map("event_registrations")
+}
+
+/// §4.1 — Etkinlik yorumlu livescore
+model LiveComment {
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String  @db.ObjectId
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fightId String? @db.ObjectId
+  fight   Fight?  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+  userId  String? @db.ObjectId
+  user    User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  body       String
+  isOfficial Boolean @default(false) // organizatör/hakem girişi
+  round      Int?
+  kind       String  @default("COMMENT") // COMMENT | ROUND_START | ROUND_END | RESULT | KNOCKDOWN
+  moderation ModerationState @default(APPROVED)
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt(sort: Desc)])
+  @@index([fightId, createdAt(sort: Desc)])
+  @@map("live_comments")
+}
+
+// ---------------------------------------------------------------------------
+// SOSYAL
+// ---------------------------------------------------------------------------
+
+model Follow {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  followerId  String @db.ObjectId
+  follower    User   @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String @db.ObjectId
+  following   User   @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@index([followerId])
+  @@map("follows")
+}
+
+model Post {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    PostType @default(TEXT)
+  body    String?
+  mediaUrl String?
+  mediaId  String?
+  thumbUrl String?
+  width    Int?
+  height   Int?
+  durationSec Int?
+  discipline Discipline?
+  tags     String[] @default([])
+
+  visibility Visibility      @default(PUBLIC)
+  moderation ModerationState @default(APPROVED)
+  moderationNote String?
+
+  likeCount    Int @default(0)
+  commentCount Int @default(0)
+  viewCount    Int @default(0)
+  score        Float @default(0) // keşfet sıralaması
+
+  isPinned   Boolean @default(false)
+  isFeatured Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  likes    PostLike[]
+  comments PostComment[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([moderation, visibility, createdAt(sort: Desc)])
+  @@index([score(sort: Desc)])
+  @@index([discipline, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model PostLike {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  body       String
+  parentId   String? @db.ObjectId
+  moderation ModerationState @default(APPROVED)
+  likeCount  Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("post_comments")
+}
+
+model ForumCategory {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String @unique
+  name        String
+  description String?
+  icon        String?
+  order       Int    @default(0)
+  discipline  Discipline?
+  threadCount Int    @default(0)
+  isLocked    Boolean @default(false)
+
+  threads ForumThread[]
+
+  @@map("forum_categories")
+}
+
+model ForumThread {
+  id         String        @id @default(auto()) @map("_id") @db.ObjectId
+  slug       String        @unique
+  categoryId String        @db.ObjectId
+  category   ForumCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  userId     String        @db.ObjectId
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title String
+  body  String
+
+  // Sporcu profiline / etkinliğe bağlı forum — §4.3
+  linkedUserId  String? @db.ObjectId
+  linkedEventId String? @db.ObjectId
+
+  isPinned   Boolean         @default(false)
+  isLocked   Boolean         @default(false)
+  moderation ModerationState @default(APPROVED)
+
+  viewCount  Int      @default(0)
+  replyCount Int      @default(0)
+  lastPostAt DateTime @default(now())
+  tags       String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts ForumPost[]
+
+  @@index([categoryId, lastPostAt(sort: Desc)])
+  @@index([isPinned, lastPostAt(sort: Desc)])
+  @@index([linkedUserId])
+  @@index([linkedEventId])
+  @@map("forum_threads")
+}
+
+model ForumPost {
+  id       String      @id @default(auto()) @map("_id") @db.ObjectId
+  threadId String      @db.ObjectId
+  thread   ForumThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId   String      @db.ObjectId
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  body       String
+  parentId   String?         @db.ObjectId
+  moderation ModerationState @default(APPROVED)
+  likeCount  Int             @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([threadId, createdAt])
+  @@index([userId])
+  @@map("forum_posts")
+}
+
+model Notification {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  userId  String @db.ObjectId
+  user    User   @relation("NotifUser", fields: [userId], references: [id], onDelete: Cascade)
+  actorId String? @db.ObjectId
+  actor   User?   @relation("NotifActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  body    String?
+  url     String?
+  isRead  Boolean          @default(false)
+  meta    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model Conversation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  isGroup   Boolean  @default(false)
+  title     String?
+  lastMessageAt DateTime @default(now())
+  lastMessage   String?
+  createdAt DateTime @default(now())
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String       @db.ObjectId
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+  unreadCount    Int          @default(0)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String       @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String       @db.ObjectId
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  body       String
+  mediaUrl   String?
+  moderation ModerationState @default(APPROVED)
+  createdAt  DateTime        @default(now())
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+// ---------------------------------------------------------------------------
+// CREATOR / SPONSOR / PAZAR
+// ---------------------------------------------------------------------------
+
+model CreatorTier {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId String @db.ObjectId
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  tier        SubscriptionTier
+  name        String
+  price       Float
+  description String?
+  perks       String[] @default([])
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  subscriptions CreatorSubscription[]
+
+  @@unique([creatorId, tier])
+  @@index([creatorId])
+  @@map("creator_tiers")
+}
+
+model CreatorSubscription {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId    String      @db.ObjectId
+  creator      User        @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
+  subscriberId String      @db.ObjectId
+  subscriber   User        @relation("Subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  tierId       String      @db.ObjectId
+  tier         CreatorTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+
+  status       SubscriptionStatus @default(ACTIVE)
+  price        Float
+  platformFee  Float // %15 — §4.7
+  startedAt    DateTime           @default(now())
+  currentPeriodEnd DateTime
+  cancelledAt  DateTime?
+
+  @@unique([creatorId, subscriberId])
+  @@index([subscriberId, status])
+  @@index([creatorId, status])
+  @@map("creator_subscriptions")
+}
+
+model CreatorPost {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  creatorId String @db.ObjectId
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  title    String
+  body     String?
+  mediaUrl String?
+  mediaId  String?
+  thumbUrl String?
+  type     PostType         @default(TEXT)
+  minTier  SubscriptionTier @default(BRONZE)
+
+  createdAt DateTime @default(now())
+
+  @@index([creatorId, createdAt(sort: Desc)])
+  @@map("creator_posts")
+}
+
+model Sponsor {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  slug    String @unique
+  name    String
+  logoUrl String?
+  logoId  String?
+  website String?
+  about   String?
+  budgetMin Float?
+  budgetMax Float?
+  disciplines Discipline[] @default([])
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  offers SponsorOffer[]
+
+  @@map("sponsors")
+}
+
+model SponsorOffer {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  sponsorId String  @db.ObjectId
+  sponsor   Sponsor @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  disciplines Discipline[] @default([])
+  minFollowers Int         @default(0)
+  minLevel    SkillLevel   @default(BEGINNER)
+  region      String?
+  value       String?
+  deadline    DateTime?
+  status      SponsorshipStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+
+  applications SponsorApplication[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("sponsor_offers")
+}
+
+model SponsorApplication {
+  id      String       @id @default(auto()) @map("_id") @db.ObjectId
+  offerId String       @db.ObjectId
+  offer   SponsorOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  userId  String       @db.ObjectId
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pitch  String
+  status SponsorshipStatus @default(APPLIED)
+
+  createdAt DateTime @default(now())
+
+  @@unique([offerId, userId])
+  @@index([userId])
+  @@map("sponsor_applications")
+}
+
+model Product {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  slug     String @unique
+  sellerId String @db.ObjectId
+  seller   User   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  category    String
+  discipline  Discipline?
+  condition   ProductCondition @default(NEW)
+  price       Float
+  currency    String           @default("EUR")
+  stock       Int              @default(1)
+  images      Json? // [{url, publicId}]
+  city        String?
+  shipping    Boolean          @default(true)
+  isActive    Boolean          @default(true)
+  viewCount   Int              @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders OrderItem[]
+
+  @@index([category, isActive])
+  @@index([sellerId, isActive])
+  @@index([createdAt(sort: Desc)])
+  @@map("products")
+}
+
+model Order {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status      OrderStatus @default(PENDING)
+  total       Float
+  platformFee Float       @default(0)
+  address     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String  @db.ObjectId
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String  @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int   @default(1)
+  price    Float
+  /// Satıcıya ait sipariş listesi için denormalize — join'siz sorgu
+  sellerId String @db.ObjectId
+
+  @@index([orderId])
+  @@index([sellerId])
+  @@map("order_items")
+}
+
+// ---------------------------------------------------------------------------
+// PASSPORT (§9)
+// ---------------------------------------------------------------------------
+
+model PassportDocument {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind       String // COACH_LICENSE | COMPETITION_DIPLOMA | TOURNAMENT_CERT | BELT_CERT | FEDERATION_LICENSE
+  title      String
+  issuer     String?
+  issuedAt   DateTime?
+  expiresAt  DateTime?
+  fileUrl    String
+  fileId     String?
+  status     VerificationStatus @default(PENDING)
+  reviewNote String?
+  reviewedAt DateTime?
+  isShareable Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("passport_documents")
+}
+
+// ---------------------------------------------------------------------------
+// MODERASYON & YÖNETİM
+// ---------------------------------------------------------------------------
+
+model Report {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  reporterId String @db.ObjectId
+  reporter   User   @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  targetType String // POST | COMMENT | USER | THREAD | FORUM_POST | MESSAGE | GYM | EVENT
+  targetId   String
+  reportedUserId String? @db.ObjectId
+  reportedUser   User?   @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  reason      ReportReason
+  description String?
+  status      ReportStatus @default(OPEN)
+  priority    Int          @default(0)
+
+  handlerId  String?   @db.ObjectId
+  resolution String?
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, priority(sort: Desc), createdAt])
+  @@index([targetType, targetId])
+  @@index([reportedUserId])
+  @@map("reports")
+}
+
+/// §4.1 — Web Push aboneliği (VAPID). Cihaz başına bir kayıt.
+model PushSubscription {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint  String  @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// §11.5 — DSA Light: moderasyon kararlarına itiraz (şikayet mekanizması)
+model Appeal {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reportId   String? @db.ObjectId
+  targetType String // POST | COMMENT | USER | THREAD | FORUM_POST
+  targetId   String
+  body       String
+
+  status     AppealStatus @default(OPEN)
+  decision   String?
+  handlerId  String?      @db.ObjectId
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
+  @@map("appeals")
+}
+
+model AuditLog {
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+
+  action     String
+  targetType String?
+  targetId   String?
+  meta       Json?
+  ip         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+/// §4.1 — Ana sayfada günlük öne çıkan sporcu
+model Spotlight {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date      DateTime
+  headline  String?
+  blurb     String?
+  imageUrl  String?
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([date])
+  @@index([isActive, date(sort: Desc)])
+  @@map("spotlights")
+}
+
+/// §4.2 — Banner reklamı (spor bahis reklamı yok)
+model Ad {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  advertiser String
+  imageUrl String
+  imageId  String?
+  linkUrl  String
+  placement String // HOME_TOP | FEED_INLINE | EVENT_SIDEBAR | GYM_LIST
+  disciplines Discipline[] @default([])
+  cities   String[] @default([])
+
+  startsAt DateTime
+  endsAt   DateTime
+  isActive Boolean  @default(true)
+
+  impressions Int @default(0)
+  clicks      Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([isActive, placement, startsAt, endsAt])
+  @@map("ads")
+}
+
+/// §6 — Bekleme listesi
+model WaitlistEntry {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  email String @unique
+  name  String?
+  city  String?
+  role  String? // ATHLETE | COACH | GYM_OWNER | FAN | ORGANIZER
+  gymName String?
+  discipline Discipline?
+  message String?
+  source  String?
+
+  status     WaitlistStatus @default(PENDING)
+  invitedAt  DateTime?
+  betaCode   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("waitlist_entries")
+}
+
+/// §6 — Beta erişim kodları (davetli erken erişim)
+model BetaCode {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  code     String  @unique
+  label    String?
+  maxUses  Int     @default(1)
+  useCount Int     @default(0)
+  isFounder Boolean @default(false)
+  grantsRole Role?
+  expiresAt DateTime?
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([isActive])
+  @@map("beta_codes")
+}
+
+/// §7 — KPI takibi ve Dur/Devam kapıları
+model KpiSnapshot {
+  id    String   @id @default(auto()) @map("_id") @db.ObjectId
+  date  DateTime @unique
+
+  mavu            Int   @default(0)
+  dau             Int   @default(0)
+  mau             Int   @default(0)
+  payingGyms      Int   @default(0)
+  waitlistCount   Int   @default(0)
+  loiCount        Int   @default(0)
+  vouchCount      Int   @default(0)
+  profileCompletion Float @default(0)
+  mrr             Float @default(0)
+  newUsers        Int   @default(0)
+  reportsCount    Int   @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([date(sort: Desc)])
+  @@map("kpi_snapshots")
+}
+
+model SiteSetting {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  key   String @unique
+  value Json
+
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
