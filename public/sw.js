@@ -9,7 +9,7 @@
  *      livescore güncellemeleri.
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `fightnet-shell-${VERSION}`;
 const PAGE_CACHE = `fightnet-pages-${VERSION}`;
 const ASSET_CACHE = `fightnet-assets-${VERSION}`;
@@ -64,20 +64,24 @@ self.addEventListener("fetch", (event) => {
   // Kimlik/oturum ve API yanıtları asla önbelleğe alınmaz — bayat yetki riski
   if (url.pathname.startsWith("/api/")) return;
 
-  // Statik varlıklar: önbellek öncelikli (içerik hash'li, bayatlamaz)
+  // Statik varlıklar: önbellekten anında servis edilir, arka planda tazelenir
+  // (stale-while-revalidate). Saf önbellek önceliği, aynı URL'nin içeriği
+  // değiştiğinde (dev sunucusunda chunk adları tekrar kullanılır) eski dosyayı
+  // kalıcı olarak servis eder ve güncellemeler tarayıcıya hiç ulaşmaz.
   if (isAsset(url)) {
     event.respondWith(
-      caches.match(req).then(
-        (hit) =>
-          hit ??
-          fetch(req).then((res) => {
+      caches.match(req).then((hit) => {
+        const network = fetch(req)
+          .then((res) => {
             if (res.ok) {
               const copy = res.clone();
               caches.open(ASSET_CACHE).then((c) => c.put(req, copy));
             }
             return res;
-          }),
-      ),
+          })
+          .catch(() => hit ?? Response.error());
+        return hit ?? network;
+      }),
     );
     return;
   }

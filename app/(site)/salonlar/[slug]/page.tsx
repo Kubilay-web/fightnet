@@ -186,7 +186,9 @@ export default async function GymPage({ params }: { params: Params }) {
                   <div className="grid min-w-[720px] grid-cols-7 gap-2">
                     {WEEKDAYS_SHORT.map((day, i) => (
                       <div key={day} className="flex flex-col gap-2">
-                        <p className="sticky top-16 rounded-lg bg-[var(--bg-subtle)] py-1.5 text-center text-xs font-black uppercase">
+                        {/* Sticky değil: kolonlar kısa, yapışan başlık ilk
+                            dersin adını örtüyordu (mobilde okunmaz oluyor). */}
+                        <p className="rounded-lg bg-[var(--bg-subtle)] py-1.5 text-center text-xs font-black uppercase">
                           {day}
                         </p>
                         {byDay[i].length === 0 && <p className="text-center text-xs text-muted">—</p>}

@@ -8,11 +8,30 @@ import { flushTrainingQueue } from "@/lib/offline";
  * çevrimdışı antrenman kayıtlarını uygulama her açıldığında / bağlantı geri
  * geldiğinde gönderir (§5.2).
  *
+ * Geliştirmede kaydedilmez: sw.js `/_next/static/` isteklerini önbellek
+ * öncelikli servis eder (üretimde dosya adları içerik hash'li olduğu için
+ * güvenli), ama dev sunucusunda chunk adları tekrar kullanıldığından aynı
+ * URL'nin eski içeriği kalıcı olarak servis edilir ve kod değişiklikleri
+ * tarayıcıya hiç ulaşmaz. Daha önce kurulmuş bir SW varsa temizlenir.
+ *
  * Görsel çıktısı yoktur; kök düzende bir kez render edilir.
  */
 export function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+
+    const unregisterInDev = async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter((k) => k.startsWith("fightnet-")).map((k) => caches.delete(k)));
+        }
+      } catch {
+        // Temizlik başarısız olursa geliştirici sert yenileme ile ilerleyebilir
+      }
+    };
 
     const register = async () => {
       try {
@@ -35,7 +54,8 @@ export function PwaRegister() {
       if (e.data?.type === "FLUSH_TRAINING_QUEUE") flush();
     };
 
-    void register();
+    if (process.env.NODE_ENV === "production") void register();
+    else void unregisterInDev();
     flush();
 
     window.addEventListener("online", flush);
