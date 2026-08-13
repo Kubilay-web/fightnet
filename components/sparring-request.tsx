@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Swords, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button, Input, Textarea, Field, Checkbox, Alert } from "@/components/ui";
+import { useLocale } from "@/components/i18n/provider";
+import { panelSparringCopy } from "@/lib/i18n/pages/panel-sparring";
 
 /** §11.2 — Talep akışında sorumluluk feragatnamesi zorunlu onayı */
 export function SparringRequestButton({
@@ -18,6 +20,7 @@ export function SparringRequestButton({
   canRequest: boolean;
   partnerName: string;
 }) {
+  const t = panelSparringCopy[useLocale()].request;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
@@ -54,14 +57,14 @@ export function SparringRequestButton({
       return;
     }
     const j = await res.json().catch(() => ({}));
-    setError(j.error ?? "Talep gönderilemedi");
+    setError(j.error ?? t.error);
     setState("idle");
   }
 
   return (
     <>
       <Button size="sm" onClick={onClick}>
-        <Swords className="size-4" /> Sparring Talebi
+        <Swords className="size-4" /> {t.button}
       </Button>
 
       {open && (
@@ -71,52 +74,47 @@ export function SparringRequestButton({
             {state === "done" ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <CheckCircle2 className="size-8 text-emerald-500" />
-                <p className="font-bold">Talebin gönderildi</p>
-                <p className="text-sm text-muted">{partnerName} yanıtladığında bildirim alacaksın.</p>
+                <p className="font-bold">{t.doneTitle}</p>
+                <p className="text-sm text-muted">{t.doneBody(partnerName)}</p>
               </div>
             ) : !canRequest ? (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
                 <ShieldAlert className="size-8 text-amber-500" />
-                <p className="font-bold">Doğrulama gerekli</p>
-                <p className="text-sm text-muted">
-                  Sparring araması Seviye 1 (kimlik doğrulanmış) üyelere açıktır.
-                  Bu, herkesin güvenliği için zorunludur.
-                </p>
+                <p className="font-bold">{t.verifyTitle}</p>
+                <p className="text-sm text-muted">{t.verifyBody}</p>
                 <Link href="/panel/dogrulama" className="font-bold text-blood-500 hover:underline">
-                  Doğrulamayı başlat
+                  {t.verifyCta}
                 </Link>
               </div>
             ) : (
               <form onSubmit={submit} className="flex flex-col gap-4">
-                <h2 className="text-lg font-black">{partnerName} ile sparring</h2>
+                <h2 className="text-lg font-black">{t.heading(partnerName)}</h2>
 
-                <Field label="Mesajın">
+                <Field label={t.message}>
                   <Textarea
                     name="message"
                     rows={3}
                     maxLength={500}
-                    placeholder="Merhaba! Seviyem uygun, hafta içi akşamları müsaitim…"
+                    placeholder={t.messagePlaceholder}
                   />
                 </Field>
 
-                <Field label="Önerilen tarih">
+                <Field label={t.proposedDate}>
                   <Input type="date" name="proposedDate" min={new Date().toISOString().slice(0, 10)} />
                 </Field>
 
-                <Alert tone="amber">
-                  Sparring kontrollü bir antrenmandır, müsabaka değildir. Yaralanma riskini
-                  kabul eder, partnerinin güvenliğinden sorumlu olduğunu onaylarsın.
-                </Alert>
+                <Alert tone="amber">{t.waiverAlert}</Alert>
 
                 <Checkbox
                   checked={waiver}
                   onChange={(e) => setWaiver(e.target.checked)}
                   label={
                     <>
+                      {t.waiverBefore}
                       <Link href="/sparring-sozlesmesi" target="_blank" className="font-bold underline">
-                        Sparring Sözleşmesi
-                      </Link>{" "}
-                      ve sorumluluk feragatnamesini okudum, kabul ediyorum.
+                        {t.waiverLink}
+                      </Link>
+                      {t.waiverAfter}
                     </>
                   }
                 />
@@ -125,10 +123,10 @@ export function SparringRequestButton({
 
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" full onClick={() => setOpen(false)}>
-                    Vazgeç
+                    {t.cancel}
                   </Button>
                   <Button type="submit" full disabled={!waiver || state === "loading"}>
-                    {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : "Talep Gönder"}
+                    {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : t.submit}
                   </Button>
                 </div>
               </form>

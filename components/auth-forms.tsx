@@ -2,14 +2,27 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Button, Input, Select, Field, Checkbox, Alert } from "@/components/ui";
 import { slugify } from "@/lib/utils";
+import type { LoginFormCopy, RegisterFormCopy } from "@/lib/i18n/pages/auth";
+
+/**
+ * Metinler sözlük yerine sunucudan prop olarak gelir (`lib/i18n/pages/auth.ts`):
+ * yalnızca iki sayfada kullanılan alan etiketleri her sayfanın sözlüğüne
+ * girmez ve yalnızca aktif dilin metni istemciye serialize edilir.
+ */
 
 type Errors = Record<string, string>;
 
-function useAuthSubmit(endpoint: string) {
+/** 18 yaş altı kontrolü; render sırasında değil, tarih değiştiğinde hesaplanır. */
+function isUnder18(birthDate: string): boolean {
+  if (!birthDate) return false;
+  return (Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 3600 * 1000) < 18;
+}
+
+function useAuthSubmit(endpoint: string, genericError: string) {
   const router = useRouter();
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -33,15 +46,15 @@ function useAuthSubmit(endpoint: string) {
     }
     const data = await res.json().catch(() => ({}));
     if (data.fields) setErrors(data.fields);
-    setGeneral(data.error ?? "Bir hata oluştu");
+    setGeneral(data.error ?? genericError);
     setLoading(false);
   }
 
   return { send, loading, errors, general };
 }
 
-export function LoginForm() {
-  const { send, loading, errors, general } = useAuthSubmit("/api/auth/login");
+export function LoginForm({ copy }: { copy: LoginFormCopy }) {
+  const { send, loading, errors, general } = useAuthSubmit("/api/auth/login", copy.genericError);
   const [show, setShow] = useState(false);
 
   return (
@@ -55,11 +68,17 @@ export function LoginForm() {
     >
       {general && <Alert tone="red">{general}</Alert>}
 
-      <Field label="E-posta" error={errors.email} required>
-        <Input name="email" type="email" required autoComplete="email" placeholder="ornek@eposta.com" />
+      <Field label={copy.email} error={errors.email} required>
+        <Input
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder={copy.emailPlaceholder}
+        />
       </Field>
 
-      <Field label="Şifre" error={errors.password} required>
+      <Field label={copy.password} error={errors.password} required>
         <div className="relative">
           <Input
             name="password"
@@ -71,7 +90,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setShow((v) => !v)}
-            aria-label={show ? "Şifreyi gizle" : "Şifreyi göster"}
+            aria-label={show ? copy.hidePassword : copy.showPassword}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
           >
             {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -80,23 +99,20 @@ export function LoginForm() {
       </Field>
 
       <Button type="submit" size="lg" full disabled={loading}>
-        {loading ? <Loader2 className="size-5 animate-spin" /> : "Giriş Yap"}
+        {loading ? <Loader2 className="size-5 animate-spin" /> : copy.submit}
       </Button>
     </form>
   );
 }
 
-export function RegisterForm() {
-  const { send, loading, errors, general } = useAuthSubmit("/api/auth/register");
+export function RegisterForm({ copy }: { copy: RegisterFormCopy }) {
+  const { send, loading, errors, general } = useAuthSubmit("/api/auth/register", copy.genericError);
   const [show, setShow] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [isMinor, setIsMinor] = useState(false);
   const [accept, setAccept] = useState(false);
-
-  const isMinor =
-    !!birthDate &&
-    (Date.now() - new Date(birthDate).getTime()) / (365.25 * 24 * 3600 * 1000) < 18;
 
   return (
     <form
@@ -121,7 +137,7 @@ export function RegisterForm() {
       {general && <Alert tone="red">{general}</Alert>}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Ad Soyad" error={errors.name} required>
+        <Field label={copy.name} error={errors.name} required>
           <Input
             name="name"
             required
@@ -139,7 +155,7 @@ export function RegisterForm() {
           />
         </Field>
 
-        <Field label="Kullanıcı adı" error={errors.username} hint="fightnet.app/@kullaniciadi" required>
+        <Field label={copy.username} error={errors.username} hint={copy.usernameHint} required>
           <Input
             name="username"
             required
@@ -153,11 +169,11 @@ export function RegisterForm() {
         </Field>
       </div>
 
-      <Field label="E-posta" error={errors.email} required>
+      <Field label={copy.email} error={errors.email} required>
         <Input name="email" type="email" required autoComplete="email" />
       </Field>
 
-      <Field label="Şifre" error={errors.password} hint="En az 8 karakter, bir harf ve bir rakam" required>
+      <Field label={copy.password} error={errors.password} hint={copy.passwordHint} required>
         <div className="relative">
           <Input
             name="password"
@@ -170,7 +186,7 @@ export function RegisterForm() {
           <button
             type="button"
             onClick={() => setShow((v) => !v)}
-            aria-label={show ? "Şifreyi gizle" : "Şifreyi göster"}
+            aria-label={show ? copy.hidePassword : copy.showPassword}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
           >
             {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -179,17 +195,20 @@ export function RegisterForm() {
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Doğum tarihi" error={errors.birthDate} hint="Yaş doğrulaması için">
+        <Field label={copy.birthDate} error={errors.birthDate} hint={copy.birthDateHint}>
           <Input
             name="birthDate"
             type="date"
             max={new Date().toISOString().slice(0, 10)}
             value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
+            onChange={(e) => {
+              setBirthDate(e.target.value);
+              setIsMinor(isUnder18(e.target.value));
+            }}
           />
         </Field>
 
-        <Field label="Şehir">
+        <Field label={copy.city}>
           <Input name="city" maxLength={60} autoComplete="address-level2" placeholder="Frankfurt" />
         </Field>
       </div>
@@ -197,28 +216,27 @@ export function RegisterForm() {
       {/* §11.1 — Çocuk koruması: ebeveyn onayı */}
       {isMinor && (
         <>
-          <Alert tone="amber" title="18 yaş altı üyelik">
-            Güvenliğin için ebeveyn onayı gerekiyor. Ebeveynine onay e-postası göndereceğiz.
-            Doğrulanmamış yetişkinler sana mesaj gönderemez.
+          <Alert tone="amber" title={copy.minorTitle}>
+            {copy.minorBody}
           </Alert>
-          <Field label="Ebeveyn e-postası" error={errors.guardianEmail} required>
+          <Field label={copy.guardianEmail} error={errors.guardianEmail} required>
             <Input name="guardianEmail" type="email" required />
           </Field>
         </>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Sen kimsin?">
+        <Field label={copy.role}>
           <Select name="role" defaultValue="ATHLETE">
-            <option value="ATHLETE">Sporcu</option>
-            <option value="COACH">Antrenör</option>
-            <option value="GYM_OWNER">Salon İşletmecisi</option>
-            <option value="ORGANIZER">Organizatör</option>
-            <option value="USER">Hayran</option>
+            <option value="ATHLETE">{copy.roleAthlete}</option>
+            <option value="COACH">{copy.roleCoach}</option>
+            <option value="GYM_OWNER">{copy.roleGymOwner}</option>
+            <option value="ORGANIZER">{copy.roleOrganizer}</option>
+            <option value="USER">{copy.roleFan}</option>
           </Select>
         </Field>
 
-        <Field label="Beta erişim kodu" error={errors.betaCode} hint="Varsa — Kurucu ayrıcalıkları açar">
+        <Field label={copy.betaCode} error={errors.betaCode} hint={copy.betaCodeHint}>
           <Input name="betaCode" maxLength={24} placeholder="FN-XXXX" className="uppercase" />
         </Field>
       </div>
@@ -228,16 +246,25 @@ export function RegisterForm() {
         onChange={(e) => setAccept(e.target.checked)}
         label={
           <>
-            <Link href="/sartlar" target="_blank" className="font-bold underline">Kullanım şartlarını</Link>,{" "}
-            <Link href="/gizlilik" target="_blank" className="font-bold underline">gizlilik politikasını</Link> ve{" "}
-            <Link href="/topluluk-kurallari" target="_blank" className="font-bold underline">topluluk kurallarını</Link>{" "}
-            okudum, kabul ediyorum.
+            {copy.accept.lead}
+            <Link href="/sartlar" target="_blank" className="font-bold underline">
+              {copy.accept.terms}
+            </Link>
+            {copy.accept.mid1}
+            <Link href="/gizlilik" target="_blank" className="font-bold underline">
+              {copy.accept.privacy}
+            </Link>
+            {copy.accept.mid2}
+            <Link href="/topluluk-kurallari" target="_blank" className="font-bold underline">
+              {copy.accept.rules}
+            </Link>
+            {copy.accept.tail}
           </>
         }
       />
 
       <Button type="submit" size="lg" full disabled={loading || !accept}>
-        {loading ? <Loader2 className="size-5 animate-spin" /> : "Hesap Oluştur"}
+        {loading ? <Loader2 className="size-5 animate-spin" /> : copy.submit}
       </Button>
     </form>
   );

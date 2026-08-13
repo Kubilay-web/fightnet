@@ -6,46 +6,48 @@ import { submitVerification } from "@/app/panel/actions";
 import { FormShell } from "@/components/form-shell";
 import { ImageUploader, type UploadedAsset } from "@/components/uploader";
 import { Textarea, Select, Field, Alert } from "@/components/ui";
+import { useLocale } from "@/components/i18n/provider";
+import { verificationFormCopy } from "@/lib/i18n/pages/panel-trust";
 
 export function VerificationForm({ targetLevel }: { targetLevel: "LEVEL_1" | "LEVEL_2" }) {
   const [idDoc, setIdDoc] = useState<UploadedAsset | null>(null);
   const [selfie, setSelfie] = useState<UploadedAsset | null>(null);
   const [proofs, setProofs] = useState<UploadedAsset[]>([]);
+  const t = verificationFormCopy[useLocale()];
 
   return (
-    <FormShell action={submitVerification} submitLabel="Talebi Gönder">
+    <FormShell action={submitVerification} submitLabel={t.submit}>
       {(state) => (
         <>
           <input type="hidden" name="targetLevel" value={targetLevel} />
 
-          <Alert tone="blue" title="Verilerin nasıl korunuyor">
+          <Alert tone="blue" title={t.privacy.title}>
             <span className="flex items-start gap-2">
               <Lock className="mt-0.5 size-4 shrink-0" />
-              Kimlik belgelerin yalnızca doğrulama için kullanılır, AB sunucularında şifreli saklanır
-              ve onay sonrası 30 gün içinde silinir. Belge görselleri profilinde asla görünmez.
+              {t.privacy.body}
             </span>
           </Alert>
 
           {targetLevel === "LEVEL_1" ? (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Kimlik belgesi" hint="Kimlik kartı, pasaport veya ehliyet" required>
+              <Field label={t.idDoc.label} hint={t.idDoc.hint} required>
                 <ImageUploader
                   folder="kyc"
                   value={idDoc?.url}
                   onChange={setIdDoc}
-                  label="Belgeyi yükle"
+                  label={t.idDoc.upload}
                   aspect="aspect-[3/2]"
                 />
                 <input type="hidden" name="idDocUrl" value={idDoc?.url ?? ""} />
                 <input type="hidden" name="idDocId" value={idDoc?.publicId ?? ""} />
               </Field>
 
-              <Field label="Selfie" hint="Belgeni elinde tutarken çekilmiş fotoğraf" required>
+              <Field label={t.selfie.label} hint={t.selfie.hint} required>
                 <ImageUploader
                   folder="kyc"
                   value={selfie?.url}
                   onChange={setSelfie}
-                  label="Selfie yükle"
+                  label={t.selfie.upload}
                   aspect="aspect-[3/2]"
                 />
                 <input type="hidden" name="selfieUrl" value={selfie?.url ?? ""} />
@@ -54,19 +56,19 @@ export function VerificationForm({ targetLevel }: { targetLevel: "LEVEL_1" | "LE
             </div>
           ) : (
             <>
-              <Field label="Hangi durumu doğruluyorsun?" required>
+              <Field label={t.role.label} required>
                 <Select name="claimedRole" required defaultValue="">
                   <option value="" disabled>
-                    Seç
+                    {t.role.select}
                   </option>
-                  <option value="ATHLETE">Sporcu (federasyon lisansı / müsabaka belgesi)</option>
-                  <option value="COACH">Antrenör (antrenör lisansı)</option>
-                  <option value="GYM_OWNER">Salon İşletmecisi (işletme belgesi)</option>
-                  <option value="ORGANIZER">Organizatör (etkinlik kaydı)</option>
+                  <option value="ATHLETE">{t.role.ATHLETE}</option>
+                  <option value="COACH">{t.role.COACH}</option>
+                  <option value="GYM_OWNER">{t.role.GYM_OWNER}</option>
+                  <option value="ORGANIZER">{t.role.ORGANIZER}</option>
                 </Select>
               </Field>
 
-              <Field label="Kanıt belgeleri" hint="En fazla 3 belge yükleyebilirsin" required>
+              <Field label={t.proofs.label} hint={t.proofs.hint} required>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {[0, 1, 2].map((i) => (
                     <div key={i}>
@@ -81,7 +83,7 @@ export function VerificationForm({ targetLevel }: { targetLevel: "LEVEL_1" | "LE
                             return next.filter(Boolean);
                           })
                         }
-                        label={`Belge ${i + 1}`}
+                        label={t.proofs.doc.replace("{n}", String(i + 1))}
                         aspect="aspect-[3/2]"
                       />
                       {proofs[i] && (
@@ -97,12 +99,12 @@ export function VerificationForm({ targetLevel }: { targetLevel: "LEVEL_1" | "LE
             </>
           )}
 
-          <Field label="Ek açıklama" error={state.fields?.note}>
+          <Field label={t.note.label} error={state.fields?.note}>
             <Textarea
               name="note"
               rows={3}
               maxLength={1000}
-              placeholder="Doğrulama ekibinin bilmesi gereken bir şey var mı?"
+              placeholder={t.note.placeholder}
             />
           </Field>
         </>

@@ -8,33 +8,41 @@ import { getSession } from "@/lib/auth";
 import { PostCard } from "@/components/cards";
 import { EmptyState, Pagination, Skeleton, Section, ButtonLink } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
-import { DISCIPLINES, FEED_PAGE_SIZE } from "@/lib/constants";
+import { FEED_PAGE_SIZE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { disciplineOptions } from "@/lib/i18n/labels";
+import { feedCopy } from "@/lib/i18n/pages/feed";
 
-export const metadata: Metadata = {
-  title: "Keşfet",
-  description: "Topluluktan antrenman videoları, teknik anlatımları ve müsabaka anları.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = feedCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/akis"),
+  };
+}
 
 export const revalidate = 30;
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function FeedPage({ searchParams }: { searchParams: SP }) {
-  const [sp, session] = await Promise.all([searchParams, getSession()]);
+  const [sp, session, locale] = await Promise.all([searchParams, getSession(), getLocale()]);
+  const c = feedCopy[locale].list;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Keşfet"
-        subtitle="Topluluğun en yeni içerikleri — küratörlü akış"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           session ? (
             <ButtonLink href="/panel/gonderi/yeni" size="sm">
-              Paylaş
+              {c.share}
             </ButtonLink>
           ) : (
             <ButtonLink href="/kayit" size="sm">
-              Katıl ve Paylaş
+              {c.joinAndShare}
             </ButtonLink>
           )
         }
@@ -43,23 +51,23 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
           basePath="/akis"
           current={sp}
           filters={[
-            { key: "discipline", label: "Disiplin", options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })) },
+            { key: "discipline", label: c.filterDiscipline, options: disciplineOptions(locale) },
             {
               key: "type",
-              label: "Tür",
+              label: c.filterType,
               options: [
-                { value: "VIDEO", label: "Video" },
-                { value: "IMAGE", label: "Görsel" },
-                { value: "TEXT", label: "Metin" },
+                { value: "VIDEO", label: c.typeVideo },
+                { value: "IMAGE", label: c.typeImage },
+                { value: "TEXT", label: c.typeText },
               ],
             },
             {
               key: "sort",
-              label: "Sıralama",
+              label: c.filterSort,
               options: [
-                { value: "new", label: "En yeni" },
-                { value: "top", label: "En popüler" },
-                { value: "trending", label: "Yükselen" },
+                { value: "new", label: c.sortNew },
+                { value: "top", label: c.sortTop },
+                { value: "trending", label: c.sortTrending },
               ],
             },
           ]}
@@ -74,6 +82,7 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
 }
 
 async function FeedResults({ sp }: { sp: Record<string, string | undefined> }) {
+  const c = feedCopy[await getLocale()].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
   const where: Prisma.PostWhereInput = { visibility: "PUBLIC", moderation: "APPROVED" };
@@ -102,8 +111,8 @@ async function FeedResults({ sp }: { sp: Record<string, string | undefined> }) {
     return (
       <EmptyState
         icon={<Compass className="size-10" />}
-        title="Henüz içerik yok"
-        description="İlk paylaşımı sen yap ve topluluğu başlat."
+        title={c.emptyTitle}
+        description={c.emptyBody}
       />
     );
   }

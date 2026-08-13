@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Lock, Sparkles, Check } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -10,6 +9,9 @@ import { Badge, Card, CardBody, Section, ButtonLink, EmptyState } from "@/compon
 import { SubscribeButton } from "@/components/subscribe-button";
 import { formatMoney, formatDate, compact, cn } from "@/lib/utils";
 import { PLATFORM_FEE_RATE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { creatorCopy } from "@/lib/i18n/pages/creator";
 
 type Params = Promise<{ username: string }>;
 
@@ -42,18 +44,23 @@ async function loadCreator(username: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { username } = await params;
-  const c = await loadCreator(username);
-  if (!c) return { title: "Creator bulunamadı" };
+  const [c, locale] = await Promise.all([loadCreator(username), getLocale()]);
+  const copy = creatorCopy[locale].detail;
+  const alternates = await metadataAlternates(`/creator/${username}`);
+  if (!c) return { title: copy.notFound, alternates };
   return {
     title: `${c.name} — Creator`,
-    description: c.bio?.slice(0, 155) ?? `${c.name}'i aylık abonelikle destekle.`,
+    description: c.bio?.slice(0, 155) ?? copy.metaDescription.replace("{name}", c.name),
+    alternates,
   };
 }
 
 export default async function CreatorPage({ params }: { params: Params }) {
   const { username } = await params;
-  const [c, session] = await Promise.all([loadCreator(username), getSession()]);
+  const [c, session, locale] = await Promise.all([loadCreator(username), getSession(), getLocale()]);
   if (!c || c.creatorTiers.length === 0) notFound();
+
+  const copy = creatorCopy[locale].detail;
 
   const subscription = session
     ? await safe(
@@ -81,16 +88,16 @@ export default async function CreatorPage({ params }: { params: Params }) {
         </div>
         <p className="text-sm text-muted">
           @{c.username}
-          {c.city && ` · ${c.city}`} · {compact(c.followerCount)} takipçi · {c._count.subscribers} abone
+          {c.city && ` · ${c.city}`} · {compact(c.followerCount)} {copy.followers} · {c._count.subscribers} {copy.subscribers}
         </p>
         {c.bio && <p className="max-w-xl text-muted">{c.bio}</p>}
         <ButtonLink href={`/dovuscular/${c.slug}`} variant="outline" size="sm">
-          Sporcu profilini gör
+          {copy.viewAthleteProfile}
         </ButtonLink>
       </div>
 
       {/* Kademeler */}
-      <Section title="Destek Kademeleri" className="mt-10">
+      <Section title={copy.tiersTitle} className="mt-10">
         <div className="grid gap-4 sm:grid-cols-3">
           {c.creatorTiers.map((t) => {
             const isCurrent = activeTier === t.tier;
@@ -101,14 +108,14 @@ export default async function CreatorPage({ params }: { params: Params }) {
                     <Badge tone={t.tier === "GOLD" ? "gold" : t.tier === "SILVER" ? "neutral" : "amber"}>
                       {t.tier}
                     </Badge>
-                    {isCurrent && <Badge tone="green">Aboneliğin</Badge>}
+                    {isCurrent && <Badge tone="green">{copy.currentSubscription}</Badge>}
                   </div>
 
                   <div>
                     <h3 className="font-bold">{t.name}</h3>
                     <p className="mt-1 font-display text-3xl font-black">
-                      {formatMoney(t.price)}
-                      <span className="text-sm font-semibold text-muted">/ay</span>
+                      {formatMoney(t.price, "EUR", LOCALE_TAG[locale])}
+                      <span className="text-sm font-semibold text-muted">{copy.perMonth}</span>
                     </p>
                   </div>
 
@@ -141,14 +148,17 @@ export default async function CreatorPage({ params }: { params: Params }) {
           })}
         </div>
         <p className="text-xs text-muted">
-          FIGHTNET komisyonu %{PLATFORM_FEE_RATE * 100} — kalan %{(1 - PLATFORM_FEE_RATE) * 100} doğrudan {c.name}'e gider.
+          {copy.feeNote
+            .replace("{fee}", String(PLATFORM_FEE_RATE * 100))
+            .replace("{rest}", String(Math.round((1 - PLATFORM_FEE_RATE) * 100)))
+            .replace("{name}", c.name)}
         </p>
       </Section>
 
       {/* Özel içerik */}
-      <Section title="Özel İçerik" className="mt-10">
+      <Section title={copy.exclusiveTitle} className="mt-10">
         {c.creatorPosts.length === 0 ? (
-          <EmptyState icon={<Sparkles className="size-10" />} title="Henüz içerik yok" />
+          <EmptyState icon={<Sparkles className="size-10" />} title={copy.emptyContent} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {c.creatorPosts.map((p) => {
@@ -160,14 +170,14 @@ export default async function CreatorPage({ params }: { params: Params }) {
                       <h3 className="truncate font-bold">{p.title}</h3>
                       <Badge tone={p.minTier === "GOLD" ? "gold" : "neutral"}>{p.minTier}+</Badge>
                     </div>
-                    <p className="text-xs text-muted">{formatDate(p.createdAt)}</p>
+                    <p className="text-xs text-muted">{formatDate(p.createdAt, LOCALE_TAG[locale])}</p>
 
                     {unlocked ? (
                       p.body && <p className="line-clamp-2-safe text-sm">{p.body}</p>
                     ) : (
                       <div className="flex items-center gap-2 rounded-xl bg-[var(--bg-subtle)] p-3 text-sm text-muted">
                         <Lock className="size-4 shrink-0" />
-                        {p.minTier} ve üzeri abonelere özel
+                        {copy.lockedBody.replace("{tier}", p.minTier)}
                       </div>
                     )}
                   </CardBody>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Swords, Check, X, Star, Clock } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -10,12 +10,20 @@ import { Badge, Card, CardBody, ButtonLink, Section, EmptyState, Button } from "
 import { SparringReviewForm } from "@/components/sparring-review-form";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { DISCIPLINE_LABEL, SKILL_LABEL, SPARRING_INTENSITY } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { panelSparringCopy } from "@/lib/i18n/pages/panel-sparring";
 
-export const metadata: Metadata = { title: "Sparring", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelSparringCopy[await getLocale()];
+  return { title: copy.meta.list, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function PanelSparringPage() {
-  const user = await requireUser();
+  const [user, locale] = await Promise.all([requireUser(), getLocale()]);
+  const t = panelSparringCopy[locale].list;
 
   const data = await safe(
     async () => {
@@ -78,25 +86,25 @@ export default async function PanelSparringPage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Sparring"
-        subtitle="İlanların, gelen talepler ve değerlendirmeler"
+        title={t.title}
+        subtitle={t.subtitle}
         action={
           <ButtonLink href="/panel/sparring/yeni" size="sm">
-            <Swords className="size-4" /> İlan Ver
+            <Swords className="size-4" /> {t.createListing}
           </ButtonLink>
         }
       />
 
       {/* §11.2 — Bekleyen değerlendirmeler */}
       {data.reviewable.length > 0 && (
-        <Section title="Değerlendirme Bekleyenler" subtitle="Güvenli topluluk için her seans sonrası değerlendir">
+        <Section title={t.reviewable.title} subtitle={t.reviewable.subtitle}>
           <div className="flex flex-col gap-3">
             {data.reviewable.map((r) => {
               const partner = r.sender.id === user.id ? r.listing.user : r.sender;
               return (
                 <Card key={r.id}>
                   <CardBody>
-                    <p className="mb-3 font-bold">{partner.name} ile sparring</p>
+                    <p className="mb-3 font-bold">{t.sparringWith(partner.name)}</p>
                     <SparringReviewForm requestId={r.id} partnerName={partner.name} />
                   </CardBody>
                 </Card>
@@ -107,9 +115,13 @@ export default async function PanelSparringPage() {
       )}
 
       {/* Gelen talepler */}
-      <Section title="Gelen Talepler" subtitle={`${pendingIncoming.length} bekleyen`}>
+      <Section title={t.incoming.title} subtitle={t.incoming.pendingCount(pendingIncoming.length)}>
         {data.incoming.length === 0 ? (
-          <EmptyState icon={<Swords className="size-8" />} title="Talep yok" description="İlan verdiğinde talepler burada görünür." />
+          <EmptyState
+            icon={<Swords className="size-8" />}
+            title={t.incoming.emptyTitle}
+            description={t.incoming.emptyDescription}
+          />
         ) : (
           <div className="flex flex-col gap-3">
             {data.incoming.map((r) => (
@@ -123,6 +135,7 @@ export default async function PanelSparringPage() {
                       </Link>
                       <VerifiedMark level={r.sender.verification} />
                     </div>
+                    {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                     <p className="text-xs text-muted">
                       {DISCIPLINE_LABEL[r.listing.discipline]} · {SKILL_LABEL[r.listing.level]}
                       {r.sender.city && ` · ${r.sender.city}`} · {timeAgo(r.createdAt)}
@@ -130,7 +143,8 @@ export default async function PanelSparringPage() {
                     {r.message && <p className="mt-1 text-sm">{r.message}</p>}
                     {r.proposedDate && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted">
-                        <Clock className="size-3" /> Önerilen: {formatDate(r.proposedDate)}
+                        <Clock className="size-3" /> {t.incoming.proposed}{" "}
+                        {formatDate(r.proposedDate, LOCALE_TAG[locale])}
                       </p>
                     )}
                   </div>
@@ -139,18 +153,22 @@ export default async function PanelSparringPage() {
                     <div className="flex gap-2">
                       <form action={respondSparringRequest.bind(null, r.id, "ACCEPT")}>
                         <Button type="submit" size="sm">
-                          <Check className="size-4" /> Kabul
+                          <Check className="size-4" /> {t.incoming.accept}
                         </Button>
                       </form>
                       <form action={respondSparringRequest.bind(null, r.id, "DECLINE")}>
                         <Button type="submit" size="sm" variant="outline">
-                          <X className="size-4" /> Reddet
+                          <X className="size-4" /> {t.incoming.decline}
                         </Button>
                       </form>
                     </div>
                   ) : (
                     <Badge tone={r.status === "ACCEPTED" ? "green" : "neutral"}>
-                      {r.status === "ACCEPTED" ? "Kabul edildi" : r.status === "DECLINED" ? "Reddedildi" : "İptal"}
+                      {r.status === "ACCEPTED"
+                        ? t.incoming.accepted
+                        : r.status === "DECLINED"
+                          ? t.incoming.declined
+                          : t.incoming.cancelled}
                     </Badge>
                   )}
                 </CardBody>
@@ -162,7 +180,7 @@ export default async function PanelSparringPage() {
 
       {/* Gönderilen talepler */}
       {data.outgoing.length > 0 && (
-        <Section title="Gönderdiğim Talepler">
+        <Section title={t.outgoing.title}>
           <Card>
             <ul className="divide-y divide-[var(--border)]">
               {data.outgoing.map((r) => (
@@ -170,12 +188,19 @@ export default async function PanelSparringPage() {
                   <Avatar src={r.listing.user.avatarUrl} name={r.listing.user.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{r.listing.user.name}</p>
+                    {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                     <p className="text-xs text-muted">
                       {DISCIPLINE_LABEL[r.listing.discipline]} · {r.listing.city} · {timeAgo(r.createdAt)}
                     </p>
                   </div>
                   <Badge tone={r.status === "ACCEPTED" ? "green" : r.status === "DECLINED" ? "red" : "amber"}>
-                    {r.status === "PENDING" ? "Bekliyor" : r.status === "ACCEPTED" ? "Kabul" : r.status === "DECLINED" ? "Red" : "İptal"}
+                    {r.status === "PENDING"
+                      ? t.outgoing.pending
+                      : r.status === "ACCEPTED"
+                        ? t.outgoing.accepted
+                        : r.status === "DECLINED"
+                          ? t.outgoing.declined
+                          : t.outgoing.cancelled}
                   </Badge>
                 </li>
               ))}
@@ -185,15 +210,15 @@ export default async function PanelSparringPage() {
       )}
 
       {/* İlanlarım */}
-      <Section title="İlanlarım">
+      <Section title={t.listings.title}>
         {data.listings.length === 0 ? (
           <EmptyState
             icon={<Swords className="size-8" />}
-            title="İlanın yok"
-            description="Sparring ilanı ver, bölgendeki sporcular sana ulaşsın."
+            title={t.listings.emptyTitle}
+            description={t.listings.emptyDescription}
             action={
               <ButtonLink href="/panel/sparring/yeni" size="sm" className="mt-2">
-                İlan Ver
+                {t.listings.emptyAction}
               </ButtonLink>
             }
           />
@@ -206,6 +231,7 @@ export default async function PanelSparringPage() {
                   <CardBody className="flex flex-col gap-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
+                        {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                         <p className="font-bold">{DISCIPLINE_LABEL[l.discipline]}</p>
                         <p className="text-xs text-muted">
                           {SKILL_LABEL[l.level]} · {l.city}
@@ -213,18 +239,23 @@ export default async function PanelSparringPage() {
                         </p>
                       </div>
                       <Badge tone={l.status === "OPEN" ? "green" : l.status === "MATCHED" ? "blue" : "neutral"}>
-                        {l.status === "OPEN" ? "Açık" : l.status === "MATCHED" ? "Eşleşti" : "Kapalı"}
+                        {l.status === "OPEN"
+                          ? t.listings.open
+                          : l.status === "MATCHED"
+                            ? t.listings.matched
+                            : t.listings.closed}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       {intensity && <Badge>{intensity.label}</Badge>}
-                      <span>{l._count.requests} talep</span>
+                      <span>{t.listings.requestCount(l._count.requests)}</span>
                       <span>{timeAgo(l.createdAt)}</span>
                     </div>
                     {l.status === "OPEN" && (
                       <form action={closeSparringListing.bind(null, l.id)} className="mt-1">
                         <Button type="submit" size="sm" variant="outline">
-                          İlanı Kapat
+                          {t.listings.close}
                         </Button>
                       </form>
                     )}

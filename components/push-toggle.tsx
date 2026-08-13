@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { Button, Alert } from "@/components/ui";
+import { useLocale } from "@/components/i18n/provider";
+import { panelSettingsCopy } from "@/lib/i18n/pages/panel-settings";
 
 /**
  * §4.1 — Push bildirimleri: takipçi aktivitesi, sparring istekleri,
@@ -21,6 +23,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string | null }) {
+  const t = panelSettingsCopy[useLocale()].push;
   const [state, setState] = useState<State>("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -74,11 +77,11 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string | null }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub.toJSON()),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Kayıt başarısız");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? t.subscribeFailed);
 
       setState("on");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Bildirimler açılamadı");
+      setError(e instanceof Error ? e.message : t.enableFailed);
       setState("off");
     }
   }
@@ -99,22 +102,17 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string | null }
   }
 
   if (state === "loading") {
-    return <p className="text-sm text-muted">Kontrol ediliyor…</p>;
+    return <p className="text-sm text-muted">{t.checking}</p>;
   }
 
   if (state === "unsupported") {
-    return (
-      <Alert tone="neutral">
-        Bu tarayıcı push bildirimlerini desteklemiyor. iPhone&apos;da FIGHTNET&apos;i ana ekrana
-        eklersen bildirimler çalışır.
-      </Alert>
-    );
+    return <Alert tone="neutral">{t.unsupported}</Alert>;
   }
 
   if (state === "denied") {
     return (
-      <Alert tone="amber" title="Bildirimler tarayıcıda engellenmiş">
-        Adres çubuğundaki site ayarlarından bildirim iznini tekrar açman gerekiyor.
+      <Alert tone="amber" title={t.deniedTitle}>
+        {t.deniedBody}
       </Alert>
     );
   }
@@ -131,11 +129,9 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string | null }
           )}
           <div>
             <p className="text-sm font-bold">
-              {state === "on" ? "Bu cihazda açık" : "Bu cihazda kapalı"}
+              {state === "on" ? t.on : t.off}
             </p>
-            <p className="text-xs text-muted">
-              Sparring istekleri, takip edilen sporcuların maçları ve canlı skor güncellemeleri.
-            </p>
+            <p className="text-xs text-muted">{t.description}</p>
           </div>
         </div>
 
@@ -145,7 +141,7 @@ export function PushToggle({ vapidPublicKey }: { vapidPublicKey: string | null }
           onClick={state === "on" ? disable : enable}
           disabled={state === "working"}
         >
-          {state === "working" ? <Loader2 className="size-4 animate-spin" /> : state === "on" ? "Kapat" : "Bildirimleri aç"}
+          {state === "working" ? <Loader2 className="size-4 animate-spin" /> : state === "on" ? t.turnOff : t.turnOn}
         </Button>
       </div>
     </div>

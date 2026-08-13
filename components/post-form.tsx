@@ -7,46 +7,50 @@ import { FormShell } from "@/components/form-shell";
 import { ImageUploader, type UploadedAsset } from "@/components/uploader";
 import { Input, Textarea, Select, Field } from "@/components/ui";
 import { videoPoster } from "@/lib/image";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { DISCIPLINES, VISIBILITY_LABEL } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/components/i18n/provider";
+import { panelPostsCopy } from "@/lib/i18n/pages/panel-posts";
 
 const TYPES = [
-  { value: "VIDEO", label: "Video", icon: Video, accept: "video/*" },
-  { value: "IMAGE", label: "Görsel", icon: ImageIcon, accept: "image/*" },
-  { value: "TEXT", label: "Metin", icon: Type, accept: "" },
+  { value: "VIDEO", key: "video", icon: Video, accept: "video/*" },
+  { value: "IMAGE", key: "image", icon: ImageIcon, accept: "image/*" },
+  { value: "TEXT", key: "text", icon: Type, accept: "" },
 ] as const;
 
 export function PostForm() {
+  const t = panelPostsCopy[useLocale()].form;
   const [type, setType] = useState<"VIDEO" | "IMAGE" | "TEXT">("VIDEO");
   const [media, setMedia] = useState<UploadedAsset | null>(null);
 
   const active = TYPES.find((t) => t.value === type)!;
 
   return (
-    <FormShell action={createPost} submitLabel="Paylaş">
+    <FormShell action={createPost} submitLabel={t.submit}>
       {(state) => (
         <>
-          <Field label="Gönderi türü">
+          <Field label={t.typeLabel}>
             <div className="grid grid-cols-3 gap-2">
-              {TYPES.map((t) => {
-                const Icon = t.icon;
+              {TYPES.map((opt) => {
+                const Icon = opt.icon;
                 return (
                   <button
-                    key={t.value}
+                    key={opt.value}
                     type="button"
                     onClick={() => {
-                      setType(t.value);
+                      setType(opt.value);
                       setMedia(null);
                     }}
                     className={cn(
                       "flex flex-col items-center gap-1.5 rounded-xl border py-3 text-sm font-bold transition-colors",
-                      type === t.value
+                      type === opt.value
                         ? "border-blood-500 bg-blood-500/10 text-blood-500"
                         : "border-[var(--border)] text-muted hover:border-blood-500/50",
                     )}
                   >
                     <Icon className="size-5" />
-                    {t.label}
+                    {t.types[opt.key]}
                   </button>
                 );
               })}
@@ -55,13 +59,13 @@ export function PostForm() {
           </Field>
 
           {type !== "TEXT" && (
-            <Field label={type === "VIDEO" ? "Video" : "Görsel"} required>
+            <Field label={type === "VIDEO" ? t.mediaVideo : t.mediaImage} required>
               <ImageUploader
                 folder="post"
                 value={media?.url}
                 onChange={setMedia}
                 accept={active.accept}
-                label={type === "VIDEO" ? "Video yükle (maks. 200 MB)" : "Görsel yükle (maks. 10 MB)"}
+                label={type === "VIDEO" ? t.uploadVideo : t.uploadImage}
                 aspect={type === "VIDEO" ? "aspect-video" : "aspect-square"}
               />
               <input type="hidden" name="mediaUrl" value={media?.url ?? ""} />
@@ -75,20 +79,20 @@ export function PostForm() {
             </Field>
           )}
 
-          <Field label={type === "TEXT" ? "Metnin" : "Açıklama"} error={state.fields?.body} required={type === "TEXT"}>
+          <Field label={type === "TEXT" ? t.bodyText : t.bodyDescription} error={state.fields?.body} required={type === "TEXT"}>
             <Textarea
               name="body"
               rows={4}
               maxLength={2000}
               required={type === "TEXT"}
-              placeholder="Ne anlatmak istiyorsun?"
+              placeholder={t.bodyPlaceholder}
             />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Disiplin">
+            <Field label={t.discipline}>
               <Select name="discipline" defaultValue="">
-                <option value="">Seç</option>
+                <option value="">{t.disciplineEmpty}</option>
                 {DISCIPLINES.map((d) => (
                   <option key={d.value} value={d.value}>
                     {d.emoji} {d.label}
@@ -97,12 +101,12 @@ export function PostForm() {
               </Select>
             </Field>
 
-            <Field label="Etiketler" hint="Virgülle ayır: teknik, armbar, kondisyon">
-              <Input name="tags" maxLength={200} placeholder="teknik, armbar" />
+            <Field label={t.tags} hint={t.tagsHint}>
+              <Input name="tags" maxLength={200} placeholder={t.tagsPlaceholder} />
             </Field>
           </div>
 
-          <Field label="Görünürlük">
+          <Field label={t.visibility}>
             <Select name="visibility" defaultValue="PUBLIC">
               {Object.entries(VISIBILITY_LABEL).map(([v, l]) => (
                 <option key={v} value={v}>

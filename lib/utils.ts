@@ -49,21 +49,33 @@ export function formatTime(date: Date | string, locale = "tr-TR"): string {
   return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(date));
 }
 
-export function timeAgo(date: Date | string): string {
+/**
+ * Göreli zaman birimleri — `Intl.RelativeTimeFormat` yerine el yazımı tablo,
+ * çünkü kart köşelerindeki rozet tek satırda kalmak zorunda ve Türkçe biçim
+ * ("3 sa") mevcut tasarımda birebir korunuyor.
+ */
+const TIME_AGO_UNITS: Record<string, { now: string; min: string; hour: string; day: string; week: string; month: string; year: string }> = {
+  de: { now: "gerade eben", min: "Min.", hour: "Std.", day: "Tage", week: "Wo.", month: "Mon.", year: "Jahre" },
+  en: { now: "just now", min: "min", hour: "h", day: "d", week: "w", month: "mo", year: "y" },
+  tr: { now: "az önce", min: "dk", hour: "sa", day: "gün", week: "hf", month: "ay", year: "yıl" },
+};
+
+export function timeAgo(date: Date | string, locale = "tr"): string {
+  const u = TIME_AGO_UNITS[locale] ?? TIME_AGO_UNITS.tr;
   const diff = Date.now() - new Date(date).getTime();
   const s = Math.floor(diff / 1000);
-  if (s < 60) return "az önce";
+  if (s < 60) return u.now;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} dk`;
+  if (m < 60) return `${m} ${u.min}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} sa`;
+  if (h < 24) return `${h} ${u.hour}`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d} gün`;
+  if (d < 7) return `${d} ${u.day}`;
   const w = Math.floor(d / 7);
-  if (w < 5) return `${w} hf`;
+  if (w < 5) return `${w} ${u.week}`;
   const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo} ay`;
-  return `${Math.floor(d / 365)} yıl`;
+  if (mo < 12) return `${mo} ${u.month}`;
+  return `${Math.floor(d / 365)} ${u.year}`;
 }
 
 export function formatMoney(value: number, currency = "EUR", locale = "de-DE"): string {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { Building2, Users, CalendarCheck, Plus, Settings } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -11,12 +11,21 @@ import { Badge, Card, CardBody, Section, EmptyState, ButtonLink, Button, Alert, 
 import { cld } from "@/lib/image";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { BOOKING_TYPE_LABEL, BOOKING_STATUS_LABEL, DISCIPLINE_LABEL } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { gymAdminCopy } from "@/lib/i18n/pages/gym-admin";
 
-export const metadata: Metadata = { title: "Salon Yönetimi", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = gymAdminCopy[await getLocale()].index;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function GymAdminPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const t = gymAdminCopy[locale].index;
 
   const data = await safe(
     async () => {
@@ -56,20 +65,20 @@ export default async function GymAdminPage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Salon Yönetimi"
-        subtitle="Salonların, ders programın ve rezervasyon talepleri"
+        title={t.title}
+        subtitle={t.subtitle}
         action={
           <ButtonLink href="/salon-yonetimi/yeni" size="sm">
-            <Plus className="size-4" /> Salon Ekle
+            <Plus className="size-4" /> {t.addGym}
           </ButtonLink>
         }
       />
 
       {user.role !== "GYM_OWNER" && user.role !== "ADMIN" && (
-        <Alert tone="amber" title="Salon İşletmecisi rolü gerekli">
-          Salon eklemek için Seviye 2 doğrulaması ile Salon İşletmecisi rolüne geçmelisin.{" "}
+        <Alert tone="amber" title={t.roleAlert.title}>
+          {t.roleAlert.body}{" "}
           <Link href="/panel/dogrulama" className="font-bold underline">
-            Doğrulamayı başlat
+            {t.roleAlert.cta}
           </Link>
         </Alert>
       )}
@@ -77,24 +86,24 @@ export default async function GymAdminPage() {
       {data.gyms.length === 0 ? (
         <EmptyState
           icon={<Building2 className="size-10" />}
-          title="Henüz salonun yok"
-          description="Salonunu FIGHTNET'e ekle — üyelerin seni bulsun, deneme antrenmanı alsın."
+          title={t.empty.title}
+          description={t.empty.description}
           action={
             <ButtonLink href="/salon-yonetimi/yeni" size="sm" className="mt-2">
-              Salonumu Ekle
+              {t.empty.action}
             </ButtonLink>
           }
         />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Salon" value={data.gyms.length} />
-            <Stat label="Toplam üye" value={data.gyms.reduce((s, g) => s + g._count.memberships, 0)} />
-            <Stat label="Bekleyen talep" value={pendingBookings.length} tone={pendingBookings.length ? "amber" : "neutral"} />
-            <Stat label="Toplam ders" value={data.gyms.reduce((s, g) => s + g._count.classes, 0)} />
+            <Stat label={t.stats.gyms} value={data.gyms.length} />
+            <Stat label={t.stats.members} value={data.gyms.reduce((s, g) => s + g._count.memberships, 0)} />
+            <Stat label={t.stats.pending} value={pendingBookings.length} tone={pendingBookings.length ? "amber" : "neutral"} />
+            <Stat label={t.stats.classes} value={data.gyms.reduce((s, g) => s + g._count.classes, 0)} />
           </div>
 
-          <Section title="Salonlarım">
+          <Section title={t.myGyms}>
             <div className="grid gap-4 sm:grid-cols-2">
               {data.gyms.map((g) => (
                 <Card key={g.id}>
@@ -116,14 +125,20 @@ export default async function GymAdminPage() {
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <h3 className="min-w-0 max-w-full truncate font-bold">{g.name}</h3>
                         <Badge tone={g.status === "ACTIVE" ? "green" : g.status === "PENDING" ? "amber" : "red"}>
-                          {g.status === "ACTIVE" ? "Yayında" : g.status === "PENDING" ? "Onay bekliyor" : "Askıda"}
+                          {g.status === "ACTIVE"
+                            ? t.gymStatus.active
+                            : g.status === "PENDING"
+                              ? t.gymStatus.pending
+                              : t.gymStatus.suspended}
                         </Badge>
-                        {g.isFounder && <Badge tone="gold">Kurucu</Badge>}
+                        {g.isFounder && <Badge tone="gold">{t.founder}</Badge>}
                       </div>
                       <p className="truncate text-xs text-muted">
-                        {g.city} · {g._count.memberships} üye · {g._count.classes} ders · {g._count.bookings} rezervasyon
+                        {g.city} · {g._count.memberships} {t.memberCount} · {g._count.classes} {t.classCount} ·{" "}
+                        {g._count.bookings} {t.bookingCount}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1">
+                        {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                         {g.disciplines.slice(0, 3).map((d) => (
                           <Badge key={d}>{DISCIPLINE_LABEL[d]}</Badge>
                         ))}
@@ -139,9 +154,9 @@ export default async function GymAdminPage() {
           </Section>
 
           {/* Rezervasyon talepleri */}
-          <Section title="Rezervasyon Talepleri" subtitle={`${pendingBookings.length} onay bekliyor`}>
+          <Section title={t.bookings.title} subtitle={t.bookings.subtitle(pendingBookings.length)}>
             {data.bookings.length === 0 ? (
-              <EmptyState icon={<CalendarCheck className="size-8" />} title="Talep yok" />
+              <EmptyState icon={<CalendarCheck className="size-8" />} title={t.bookings.empty} />
             ) : (
               <div className="flex flex-col gap-3">
                 {data.bookings.map((b) => (
@@ -152,12 +167,13 @@ export default async function GymAdminPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-bold">{b.user.name}</p>
                           <p className="text-xs text-muted">
-                            {b.gym.name} · {formatDate(b.date)}
+                            {b.gym.name} · {formatDate(b.date, LOCALE_TAG[locale])}
                             {b.class && ` · ${b.class.name} ${b.class.startTime}`}
                             {b.contactPhone && ` · ${b.contactPhone}`}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
+                          {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                           <Badge>{BOOKING_TYPE_LABEL[b.type]}</Badge>
                           <Badge tone={b.status === "CONFIRMED" ? "green" : "amber"}>
                             {BOOKING_STATUS_LABEL[b.status]}
@@ -169,12 +185,12 @@ export default async function GymAdminPage() {
                         <div className="rounded-xl bg-[var(--bg-subtle)] p-3 text-sm">
                           {b.experience && (
                             <p>
-                              <b className="text-xs uppercase text-muted">Deneyim:</b> {b.experience}
+                              <b className="text-xs uppercase text-muted">{t.bookings.experience}</b> {b.experience}
                             </p>
                           )}
                           {b.goals && (
                             <p className="mt-1">
-                              <b className="text-xs uppercase text-muted">Hedef:</b> {b.goals}
+                              <b className="text-xs uppercase text-muted">{t.bookings.goals}</b> {b.goals}
                             </p>
                           )}
                         </div>
@@ -184,7 +200,7 @@ export default async function GymAdminPage() {
                         {b.status === "PENDING" && (
                           <form action={setBookingStatus.bind(null, b.id, "CONFIRMED")}>
                             <Button type="submit" size="sm">
-                              Onayla
+                              {t.bookings.confirm}
                             </Button>
                           </form>
                         )}
@@ -192,19 +208,19 @@ export default async function GymAdminPage() {
                           <>
                             <form action={setBookingStatus.bind(null, b.id, "ATTENDED")}>
                               <Button type="submit" size="sm">
-                                Katıldı
+                                {t.bookings.attended}
                               </Button>
                             </form>
                             <form action={setBookingStatus.bind(null, b.id, "NO_SHOW")}>
                               <Button type="submit" size="sm" variant="outline">
-                                Gelmedi
+                                {t.bookings.noShow}
                               </Button>
                             </form>
                           </>
                         )}
                         <form action={setBookingStatus.bind(null, b.id, "CANCELLED")}>
                           <Button type="submit" size="sm" variant="outline">
-                            İptal Et
+                            {t.bookings.cancel}
                           </Button>
                         </form>
                       </div>

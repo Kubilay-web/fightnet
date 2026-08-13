@@ -5,19 +5,24 @@ import { Download, Loader2 } from "lucide-react";
 import { updateSettings, changePassword, deleteAccount, exportMyData } from "@/app/panel/actions";
 import { FormShell } from "@/components/form-shell";
 import { Input, Select, Field, Switch, Button } from "@/components/ui";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { VISIBILITY_LABEL } from "@/lib/constants";
+import { useLocale } from "@/components/i18n/provider";
+import { panelSettingsCopy } from "@/lib/i18n/pages/panel-settings";
 
 export function SettingsForm({
   initial,
 }: {
   initial: { locale: string; theme: string; visibility: string; pushEnabled: boolean; emailEnabled: boolean };
 }) {
+  const t = panelSettingsCopy[useLocale()].settingsForm;
+
   return (
-    <FormShell action={updateSettings} submitLabel="Ayarları Kaydet">
+    <FormShell action={updateSettings} submitLabel={t.submit}>
       {() => (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Dil" hint="§5.2 — Almanca, İngilizce, Türkçe">
+            <Field label={t.language} hint={t.languageHint}>
               <Select name="locale" defaultValue={initial.locale}>
                 <option value="de">Deutsch</option>
                 <option value="en">English</option>
@@ -25,15 +30,15 @@ export function SettingsForm({
               </Select>
             </Field>
 
-            <Field label="Tema">
+            <Field label={t.theme}>
               <Select name="theme" defaultValue={initial.theme}>
-                <option value="dark">Karanlık</option>
-                <option value="light">Açık</option>
-                <option value="system">Sistem</option>
+                <option value="dark">{t.themes.dark}</option>
+                <option value="light">{t.themes.light}</option>
+                <option value="system">{t.themes.system}</option>
               </Select>
             </Field>
 
-            <Field label="Varsayılan görünürlük">
+            <Field label={t.defaultVisibility}>
               <Select name="visibility" defaultValue={initial.visibility}>
                 {Object.entries(VISIBILITY_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>
@@ -45,8 +50,8 @@ export function SettingsForm({
           </div>
 
           <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] p-4">
-            <Switch name="pushEnabled" defaultChecked={initial.pushEnabled} label="Push bildirimleri" />
-            <Switch name="emailEnabled" defaultChecked={initial.emailEnabled} label="E-posta bildirimleri" />
+            <Switch name="pushEnabled" defaultChecked={initial.pushEnabled} label={t.pushSwitch} />
+            <Switch name="emailEnabled" defaultChecked={initial.emailEnabled} label={t.emailSwitch} />
           </div>
         </>
       )}
@@ -55,14 +60,16 @@ export function SettingsForm({
 }
 
 export function PasswordForm() {
+  const t = panelSettingsCopy[useLocale()].passwordForm;
+
   return (
-    <FormShell action={changePassword} submitLabel="Şifreyi Değiştir">
+    <FormShell action={changePassword} submitLabel={t.submit}>
       {(state) => (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Mevcut şifre" error={state.fields?.current} required>
+          <Field label={t.current} error={state.fields?.current} required>
             <Input type="password" name="current" required autoComplete="current-password" />
           </Field>
-          <Field label="Yeni şifre" error={state.fields?.next} hint="En az 8 karakter, bir rakam" required>
+          <Field label={t.next} error={state.fields?.next} hint={t.nextHint} required>
             <Input type="password" name="next" required minLength={8} autoComplete="new-password" />
           </Field>
         </div>
@@ -72,6 +79,7 @@ export function PasswordForm() {
 }
 
 export function DataExportPanel() {
+  const t = panelSettingsCopy[useLocale()].export;
   const [loading, setLoading] = useState(false);
 
   async function download() {
@@ -93,25 +101,25 @@ export function DataExportPanel() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="font-bold">Verilerimi indir</p>
-        <p className="text-sm text-muted">
-          Profilin, antrenman kayıtların, gönderilerin ve rezervasyonların JSON formatında.
-        </p>
+        <p className="font-bold">{t.title}</p>
+        <p className="text-sm text-muted">{t.body}</p>
       </div>
       <Button variant="outline" onClick={download} disabled={loading}>
         {loading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-        JSON İndir
+        {t.button}
       </Button>
     </div>
   );
 }
 
 export function DeleteAccountForm({ username }: { username: string }) {
+  const t = panelSettingsCopy[useLocale()].deleteForm;
+
   return (
-    <FormShell action={deleteAccount} submitLabel="Hesabımı Kalıcı Olarak Sil">
+    <FormShell action={deleteAccount} submitLabel={t.submit}>
       {(state) => (
         <Field
-          label={`Onaylamak için kullanıcı adını yaz: ${username}`}
+          label={t.confirmLabel(username)}
           error={state.fields?.confirm}
           required
         >

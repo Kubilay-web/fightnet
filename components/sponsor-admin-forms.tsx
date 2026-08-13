@@ -9,53 +9,57 @@ import {
   reviewSponsorApplication,
 } from "@/app/admin/actions";
 import { FormShell } from "@/components/form-shell";
+import { useLocale } from "@/components/i18n/provider";
 import { ImageUploader } from "@/components/uploader";
 import { Button, Input, Textarea, Select, Field, Checkbox } from "@/components/ui";
 import { DISCIPLINES, SKILL_LEVELS } from "@/lib/constants";
+import { sponsorAdminCopy } from "@/lib/i18n/pages/admin-forms";
 
 /** §4.3 — Sponsor markası ekleme */
 export function SponsorForm() {
+  const t = sponsorAdminCopy[useLocale()].sponsor;
   const [logo, setLogo] = useState<{ url: string; publicId: string } | null>(null);
 
   return (
-    <FormShell action={createSponsor} submitLabel="Sponsoru Ekle">
+    <FormShell action={createSponsor} submitLabel={t.submit}>
       {(state) => (
         <>
-          <Field label="Marka adı" error={state.fields?.name} required>
-            <Input name="name" required minLength={2} maxLength={80} placeholder="Fairtex Deutschland" />
+          <Field label={t.name} error={state.fields?.name} required>
+            <Input name="name" required minLength={2} maxLength={80} placeholder={t.namePlaceholder} />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Web sitesi">
+            <Field label={t.website}>
               <Input type="url" name="website" placeholder="https://…" />
             </Field>
-            <Field label="Bütçe aralığı (€/yıl)">
+            <Field label={t.budget}>
               <div className="flex items-center gap-2">
-                <Input type="number" name="budgetMin" min={0} placeholder="Min" />
+                <Input type="number" name="budgetMin" min={0} placeholder={t.budgetMin} />
                 <span className="text-muted">–</span>
-                <Input type="number" name="budgetMax" min={0} placeholder="Maks" />
+                <Input type="number" name="budgetMax" min={0} placeholder={t.budgetMax} />
               </div>
             </Field>
           </div>
 
-          <Field label="Hakkında">
+          <Field label={t.about}>
             <Textarea name="about" rows={3} maxLength={1000} />
           </Field>
 
-          <Field label="İlgilendiği disiplinler">
+          <Field label={t.disciplines}>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
               {DISCIPLINES.map((d) => (
                 <Checkbox key={d.value} name="disciplines[]" value={d.value} label={d.label} />
               ))}
             </div>
           </Field>
 
-          <Field label="Logo">
+          <Field label={t.logo}>
             <ImageUploader
               folder="ad"
               value={logo?.url}
               aspect="aspect-video"
-              label="Logo yükle"
+              label={t.logoUpload}
               onChange={(a) => setLogo(a ? { url: a.url, publicId: a.publicId } : null)}
             />
             <input type="hidden" name="logoUrl" value={logo?.url ?? ""} />
@@ -69,18 +73,20 @@ export function SponsorForm() {
 
 /** §4.3 — Sponsorluk teklifi yayınlama */
 export function SponsorOfferForm({ sponsors }: { sponsors: { id: string; name: string }[] }) {
+  const t = sponsorAdminCopy[useLocale()].offer;
+
   if (sponsors.length === 0) {
-    return <p className="text-sm text-muted">Önce en az bir sponsor markası ekle.</p>;
+    return <p className="text-sm text-muted">{t.empty}</p>;
   }
 
   return (
-    <FormShell action={createSponsorOffer} submitLabel="Teklifi Yayınla">
+    <FormShell action={createSponsorOffer} submitLabel={t.submit}>
       {(state) => (
         <>
-          <Field label="Sponsor" error={state.fields?.sponsorId} required>
+          <Field label={t.sponsor} error={state.fields?.sponsorId} required>
             <Select name="sponsorId" required defaultValue="">
               <option value="" disabled>
-                Seç
+                {t.select}
               </option>
               {sponsors.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -90,20 +96,21 @@ export function SponsorOfferForm({ sponsors }: { sponsors: { id: string; name: s
             </Select>
           </Field>
 
-          <Field label="Başlık" error={state.fields?.title} required>
-            <Input name="title" required minLength={3} maxLength={120} placeholder="Amatör MMA sporcusu aranıyor" />
+          <Field label={t.title} error={state.fields?.title} required>
+            <Input name="title" required minLength={3} maxLength={120} placeholder={t.titlePlaceholder} />
           </Field>
 
-          <Field label="Açıklama" error={state.fields?.description} required>
+          <Field label={t.description} error={state.fields?.description} required>
             <Textarea name="description" required minLength={10} maxLength={3000} rows={4} />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Min. takipçi">
+            <Field label={t.minFollowers}>
               <Input type="number" name="minFollowers" min={0} defaultValue={0} />
             </Field>
-            <Field label="Min. seviye">
+            <Field label={t.minLevel}>
               <Select name="minLevel" defaultValue="BEGINNER">
+                {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                 {SKILL_LEVELS.map((l) => (
                   <option key={l.value} value={l.value}>
                     {l.label}
@@ -111,22 +118,23 @@ export function SponsorOfferForm({ sponsors }: { sponsors: { id: string; name: s
                 ))}
               </Select>
             </Field>
-            <Field label="Bölge">
-              <Input name="region" maxLength={60} placeholder="Rhein-Main" />
+            <Field label={t.region}>
+              <Input name="region" maxLength={60} placeholder={t.regionPlaceholder} />
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Teklifin değeri" hint="Ürün desteği, nakit, ekipman…">
-              <Input name="value" maxLength={120} placeholder="Yıllık ekipman paketi + 1.200 €" />
+            <Field label={t.value} hint={t.valueHint}>
+              <Input name="value" maxLength={120} placeholder={t.valuePlaceholder} />
             </Field>
-            <Field label="Son başvuru">
+            <Field label={t.deadline}>
               <Input type="date" name="deadline" />
             </Field>
           </div>
 
-          <Field label="Disiplinler">
+          <Field label={t.disciplines}>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
               {DISCIPLINES.map((d) => (
                 <Checkbox key={d.value} name="disciplines[]" value={d.value} label={d.label} />
               ))}
@@ -139,6 +147,7 @@ export function SponsorOfferForm({ sponsors }: { sponsors: { id: string; name: s
 }
 
 export function OfferStatusToggle({ id, status }: { id: string; status: string }) {
+  const t = sponsorAdminCopy[useLocale()].status;
   const [pending, start] = useTransition();
   const open = status === "OPEN";
 
@@ -149,22 +158,23 @@ export function OfferStatusToggle({ id, status }: { id: string; status: string }
       disabled={pending}
       onClick={() => start(() => setOfferStatus(id, open ? "CLOSED" : "OPEN"))}
     >
-      {pending ? <Loader2 className="size-4 animate-spin" /> : open ? "Kapat" : "Yeniden aç"}
+      {pending ? <Loader2 className="size-4 animate-spin" /> : open ? t.close : t.reopen}
     </Button>
   );
 }
 
 export function ApplicationActions({ id, status }: { id: string; status: string }) {
+  const t = sponsorAdminCopy[useLocale()].application;
   const [pending, start] = useTransition();
   if (status === "ACCEPTED" || status === "REJECTED") return null;
 
   return (
     <div className="flex gap-1.5">
       <Button size="sm" disabled={pending} onClick={() => start(() => reviewSponsorApplication(id, "ACCEPTED"))}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : "Kabul"}
+        {pending ? <Loader2 className="size-4 animate-spin" /> : t.accept}
       </Button>
       <Button size="sm" variant="ghost" disabled={pending} onClick={() => start(() => reviewSponsorApplication(id, "REJECTED"))}>
-        Ret
+        {t.reject}
       </Button>
     </div>
   );

@@ -4,6 +4,8 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/components/i18n/provider";
+import { panelPostsCopy } from "@/lib/i18n/pages/panel-posts";
 
 /**
  * İyimser takip düğmesi — sunucu yanıtı beklenmeden UI güncellenir,
@@ -20,6 +22,7 @@ export function FollowButton({
   authed: boolean;
   size?: "sm" | "md";
 }) {
+  const t = panelPostsCopy[useLocale()].follow;
   const router = useRouter();
   const [following, setFollowing] = useState(initialFollowing);
   const [optimistic, setOptimistic] = useOptimistic(following);
@@ -52,11 +55,11 @@ export function FollowButton({
     >
       {optimistic ? (
         <>
-          <UserCheck className="size-4" /> Takiptesin
+          <UserCheck className="size-4" /> {t.following}
         </>
       ) : (
         <>
-          <UserPlus className="size-4" /> Takip Et
+          <UserPlus className="size-4" /> {t.follow}
         </>
       )}
     </Button>

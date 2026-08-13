@@ -7,8 +7,11 @@ import { FormShell } from "@/components/form-shell";
 import { ImageUploader, type UploadedAsset } from "@/components/uploader";
 import { Input, Textarea, Select, Field } from "@/components/ui";
 import { videoPoster } from "@/lib/image";
+import { useLocale } from "@/components/i18n/provider";
+import { panelCreatorCopy } from "@/lib/i18n/pages/panel-creator";
 
 export function CreatorTierForm() {
+  const t = panelCreatorCopy[useLocale()].tierForm;
   const [perks, setPerks] = useState<string[]>([]);
   const [perk, setPerk] = useState("");
 
@@ -20,32 +23,32 @@ export function CreatorTierForm() {
   }
 
   return (
-    <FormShell action={upsertCreatorTier} submitLabel="Kademeyi Kaydet">
+    <FormShell action={upsertCreatorTier} submitLabel={t.submit}>
       {(state) => (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Kademe" required>
+            <Field label={t.tier} required>
               <Select name="tier" required defaultValue="BRONZE">
-                <option value="BRONZE">Bronz</option>
-                <option value="SILVER">Gümüş</option>
-                <option value="GOLD">Altın</option>
+                <option value="BRONZE">{t.bronze}</option>
+                <option value="SILVER">{t.silver}</option>
+                <option value="GOLD">{t.gold}</option>
               </Select>
             </Field>
 
-            <Field label="Kademe adı" error={state.fields?.name} required>
-              <Input name="name" required maxLength={40} placeholder="Destekçi" />
+            <Field label={t.name} error={state.fields?.name} required>
+              <Input name="name" required maxLength={40} placeholder={t.namePlaceholder} />
             </Field>
 
-            <Field label="Aylık fiyat (€)" error={state.fields?.price} required>
+            <Field label={t.price} error={state.fields?.price} required>
               <Input type="number" step="0.5" name="price" required min={1} max={500} defaultValue={5} />
             </Field>
           </div>
 
-          <Field label="Açıklama">
-            <Textarea name="description" rows={2} maxLength={500} placeholder="Bu kademede neler var?" />
+          <Field label={t.description}>
+            <Textarea name="description" rows={2} maxLength={500} placeholder={t.descriptionPlaceholder} />
           </Field>
 
-          <Field label="Ayrıcalıklar" hint="Enter ile ekle">
+          <Field label={t.perks} hint={t.perksHint}>
             <div className="flex gap-2">
               <Input
                 value={perk}
@@ -56,13 +59,13 @@ export function CreatorTierForm() {
                     addPerk();
                   }
                 }}
-                placeholder="Haftalık antrenman videosu"
+                placeholder={t.perkPlaceholder}
                 maxLength={120}
               />
               <button
                 type="button"
                 onClick={addPerk}
-                aria-label="Ayrıcalık ekle"
+                aria-label={t.addPerkAria}
                 className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] hover:border-blood-500 hover:text-blood-500"
               >
                 <Plus className="size-4" />
@@ -80,7 +83,7 @@ export function CreatorTierForm() {
                     <button
                       type="button"
                       onClick={() => setPerks((prev) => prev.filter((x) => x !== p))}
-                      aria-label={`${p} kaldır`}
+                      aria-label={t.removePerkAria(p)}
                       className="text-muted hover:text-blood-500"
                     >
                       <X className="size-3" />
@@ -97,37 +100,38 @@ export function CreatorTierForm() {
 }
 
 export function CreatorPostForm() {
+  const t = panelCreatorCopy[useLocale()].postForm;
   const [media, setMedia] = useState<UploadedAsset | null>(null);
   const [type, setType] = useState<"VIDEO" | "IMAGE" | "TEXT">("VIDEO");
 
   return (
-    <FormShell action={createCreatorPost} submitLabel="İçeriği Yayınla">
+    <FormShell action={createCreatorPost} submitLabel={t.submit}>
       {(state) => (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Başlık" error={state.fields?.title} required>
+            <Field label={t.title} error={state.fields?.title} required>
               <Input name="title" required maxLength={140} />
             </Field>
 
-            <Field label="Tür">
+            <Field label={t.type}>
               <Select name="type" value={type} onChange={(e) => setType(e.target.value as typeof type)}>
-                <option value="VIDEO">Video</option>
-                <option value="IMAGE">Görsel</option>
-                <option value="TEXT">Metin</option>
+                <option value="VIDEO">{t.typeVideo}</option>
+                <option value="IMAGE">{t.typeImage}</option>
+                <option value="TEXT">{t.typeText}</option>
               </Select>
             </Field>
 
-            <Field label="Minimum kademe">
+            <Field label={t.minTier}>
               <Select name="minTier" defaultValue="BRONZE">
-                <option value="BRONZE">Bronz+</option>
-                <option value="SILVER">Gümüş+</option>
-                <option value="GOLD">Altın</option>
+                <option value="BRONZE">{t.bronzePlus}</option>
+                <option value="SILVER">{t.silverPlus}</option>
+                <option value="GOLD">{t.goldOnly}</option>
               </Select>
             </Field>
           </div>
 
           {type !== "TEXT" && (
-            <Field label="Medya">
+            <Field label={t.media}>
               <ImageUploader
                 folder="creator"
                 value={media?.url}
@@ -145,7 +149,7 @@ export function CreatorPostForm() {
             </Field>
           )}
 
-          <Field label="İçerik">
+          <Field label={t.body}>
             <Textarea name="body" rows={4} maxLength={5000} />
           </Field>
         </>

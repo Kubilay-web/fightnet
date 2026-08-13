@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Handshake } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -14,20 +14,29 @@ import {
 } from "@/components/sponsor-admin-forms";
 import { formatDate, timeAgo, truncate, compact } from "@/lib/utils";
 import { DISCIPLINE_LABEL } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { adminSponsorsCopy } from "@/lib/i18n/pages/admin-ops";
 
-export const metadata: Metadata = { title: "Sponsorlar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminSponsorsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
-const APP_STATUS: Record<string, { label: string; tone: "amber" | "green" | "red" | "neutral" }> = {
-  APPLIED: { label: "Başvurdu", tone: "amber" },
-  ACCEPTED: { label: "Kabul", tone: "green" },
-  REJECTED: { label: "Ret", tone: "red" },
-  OPEN: { label: "Açık", tone: "neutral" },
-  CLOSED: { label: "Kapalı", tone: "neutral" },
+const APP_TONE: Record<string, "amber" | "green" | "red" | "neutral"> = {
+  APPLIED: "amber",
+  ACCEPTED: "green",
+  REJECTED: "red",
+  OPEN: "neutral",
+  CLOSED: "neutral",
 };
 
 export default async function AdminSponsorsPage() {
   await requireRole("ADMIN");
+  const locale = await getLocale();
+  const t = adminSponsorsCopy[locale];
 
   const data = await safe(
     async () => {
@@ -68,19 +77,20 @@ export default async function AdminSponsorsPage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Sponsor Portalı"
-        subtitle={`${data.sponsors.length} marka · ${data.offers.length} teklif · ${pending} başvuru bekliyor`}
+        title={t.title}
+        subtitle={t.subtitle(data.sponsors.length, data.offers.length, pending)}
       />
 
       {/* Başvurular */}
-      <Section title="Başvurular" subtitle="Sporcuların sponsorluk talepleri">
+      <Section title={t.applications.heading} subtitle={t.applications.subtitle}>
         {data.applications.length === 0 ? (
-          <EmptyState icon={<Handshake className="size-8" />} title="Başvuru yok" />
+          <EmptyState icon={<Handshake className="size-8" />} title={t.applications.empty} />
         ) : (
           <Card>
             <ul className="divide-y divide-[var(--border)]">
               {data.applications.map((a) => {
-                const s = APP_STATUS[a.status] ?? APP_STATUS.APPLIED;
+                const tone = APP_TONE[a.status] ?? APP_TONE.APPLIED;
+                const label = t.appStatus[a.status as keyof typeof t.appStatus] ?? t.appStatus.APPLIED;
                 return (
                   <li key={a.id} className="flex flex-col gap-2 p-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -89,9 +99,9 @@ export default async function AdminSponsorsPage() {
                         {a.user.name}
                       </Link>
                       <VerifiedMark level={a.user.verification} />
-                      <span className="text-xs text-muted">{compact(a.user.followerCount)} takipçi</span>
-                      <Badge tone={s.tone}>{s.label}</Badge>
-                      <span className="ml-auto text-xs text-muted">{timeAgo(a.createdAt)}</span>
+                      <span className="text-xs text-muted">{compact(a.user.followerCount)} {t.followers}</span>
+                      <Badge tone={tone}>{label}</Badge>
+                      <span className="ml-auto text-xs text-muted">{timeAgo(a.createdAt, locale)}</span>
                     </div>
                     <p className="text-xs text-muted">
                       {a.offer.sponsor.name} · {a.offer.title}
@@ -107,9 +117,9 @@ export default async function AdminSponsorsPage() {
       </Section>
 
       {/* Teklifler */}
-      <Section title="Teklifler">
+      <Section title={t.offers.heading}>
         {data.offers.length === 0 ? (
-          <EmptyState title="Teklif yok" description="Aşağıdan ilk sponsorluk teklifini yayınla." />
+          <EmptyState title={t.offers.empty} description={t.offers.emptyDescription} />
         ) : (
           <Card>
             <ul className="divide-y divide-[var(--border)]">
@@ -121,15 +131,16 @@ export default async function AdminSponsorsPage() {
                       {o.sponsor.name}
                       {o.region && ` · ${o.region}`}
                       {o.value && ` · ${o.value}`}
-                      {o.minFollowers > 0 && ` · min ${compact(o.minFollowers)} takipçi`}
-                      {o.deadline && ` · son ${formatDate(o.deadline)}`}
+                      {o.minFollowers > 0 && ` · ${t.minFollowers(compact(o.minFollowers))}`}
+                      {o.deadline && ` · ${t.deadline(formatDate(o.deadline, LOCALE_TAG[locale]))}`}
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       {o.disciplines.length > 0 &&
                         ` · ${o.disciplines.map((d) => DISCIPLINE_LABEL[d]).join(", ")}`}
                     </p>
                   </div>
-                  <Badge>{o._count.applications} başvuru</Badge>
+                  <Badge>{t.applicationsBadge(o._count.applications)}</Badge>
                   <Badge tone={o.status === "OPEN" ? "green" : "neutral"}>
-                    {o.status === "OPEN" ? "Açık" : "Kapalı"}
+                    {o.status === "OPEN" ? t.open : t.closed}
                   </Badge>
                   <OfferStatusToggle id={o.id} status={o.status} />
                 </li>
@@ -140,7 +151,7 @@ export default async function AdminSponsorsPage() {
       </Section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Section title="Yeni Teklif">
+        <Section title={t.newOffer}>
           <Card>
             <CardBody>
               <SponsorOfferForm sponsors={data.sponsors} />
@@ -148,7 +159,7 @@ export default async function AdminSponsorsPage() {
           </Card>
         </Section>
 
-        <Section title="Yeni Sponsor Markası">
+        <Section title={t.newSponsor}>
           <Card>
             <CardBody>
               <SponsorForm />

@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import { confirmGuardianConsent } from "@/lib/guardian";
 import { Card, CardBody, ButtonLink } from "@/components/ui";
+import { getDict } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Veli Onayı",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const dict = await getDict();
+  return {
+    title: dict.errors.guardianMeta,
+    robots: { index: false, follow: false },
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +24,7 @@ export default async function GuardianConsentPage({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
-  const { token } = await searchParams;
+  const [{ token }, dict] = await Promise.all([searchParams, getDict()]);
   const result = await confirmGuardianConsent(token ?? "");
 
   return (
@@ -35,32 +39,35 @@ export default async function GuardianConsentPage({
 
       <div>
         <h1 className="font-display text-3xl font-black tracking-tight">
-          {result.ok ? "Onay alındı" : "Onay verilemedi"}
+          {result.ok ? dict.errors.guardianOkTitle : dict.errors.guardianFailTitle}
         </h1>
         <p className="mt-2 text-sm text-muted">
           {result.ok
-            ? `${result.name ?? "Üye"} artık FIGHTNET'i tam olarak kullanabilir.`
+            ? dict.errors.guardianOkBody.replace(
+                "{name}",
+                result.name ?? dict.errors.guardianMember,
+              )
             : result.error}
         </p>
       </div>
 
       <Card className="w-full text-left">
         <CardBody className="flex flex-col gap-3 text-sm">
-          <p className="font-bold">Bu onay ne anlama geliyor?</p>
+          <p className="font-bold">{dict.errors.guardianWhatTitle}</p>
           <ul className="flex list-disc flex-col gap-1.5 pl-4 text-muted">
-            <li>Kimliği doğrulanmış yetişkinler üyeye doğrudan mesaj gönderebilir.</li>
-            <li>Sparring eşleşmesi ve müsabaka kaydı açılır — her sparring sonrası güvenlik değerlendirmesi zorunludur.</li>
-            <li>Üyenin profili yaşına uygun içerik filtresiyle korunmaya devam eder.</li>
-            <li>Onayı istediğiniz zaman geri çekebilirsiniz.</li>
+            <li>{dict.errors.guardianPoint1}</li>
+            <li>{dict.errors.guardianPoint2}</li>
+            <li>{dict.errors.guardianPoint3}</li>
+            <li>{dict.errors.guardianPoint4}</li>
           </ul>
           <p className="text-xs text-muted">
-            Sorularınız için{" "}
+            {dict.errors.guardianContactLead}{" "}
             <Link href="/iletisim" className="font-semibold text-blood-500 hover:underline">
-              bize yazın
+              {dict.errors.guardianContactLink}
             </Link>
-            . Veri işleme detayları{" "}
+            . {dict.errors.guardianPrivacyLead}{" "}
             <Link href="/gizlilik" className="font-semibold text-blood-500 hover:underline">
-              gizlilik açıklamasında
+              {dict.errors.guardianPrivacyLink}
             </Link>
             .
           </p>
@@ -68,7 +75,7 @@ export default async function GuardianConsentPage({
       </Card>
 
       <ButtonLink href="/" variant="outline" size="sm">
-        FIGHTNET&apos;e git
+        {dict.errors.guardianCta}
       </ButtonLink>
     </div>
   );

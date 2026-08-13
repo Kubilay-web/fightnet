@@ -1,8 +1,12 @@
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Logo } from "@/components/layout/logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { getLocale } from "@/lib/i18n/server";
+import { authCopy } from "@/lib/i18n/pages/auth";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const copy = authCopy[await getLocale()].layout;
+
   return (
     <div className="relative flex min-h-dvh flex-col">
       <div className="absolute inset-0 mesh-hero opacity-70" />
@@ -13,7 +17,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <Link href="/" className="text-sm font-semibold text-muted hover:text-[var(--fg)]">
-            Ana sayfa
+            {copy.home}
           </Link>
         </div>
       </header>
@@ -23,11 +27,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       <footer className="relative px-4 pb-6 text-center text-xs text-muted">
-        <Link href="/gizlilik" className="hover:underline">Gizlilik</Link>
+        <Link href="/gizlilik" className="hover:underline">{copy.privacy}</Link>
         {" · "}
-        <Link href="/sartlar" className="hover:underline">Şartlar</Link>
+        <Link href="/sartlar" className="hover:underline">{copy.terms}</Link>
         {" · "}
-        <Link href="/kunye" className="hover:underline">Künye</Link>
+        <Link href="/kunye" className="hover:underline">{copy.imprint}</Link>
       </footer>
     </div>
   );

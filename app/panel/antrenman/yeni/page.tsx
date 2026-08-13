@@ -4,12 +4,19 @@ import { safe } from "@/lib/queries";
 import { requireUser } from "@/lib/auth";
 import { Card, CardBody, Section } from "@/components/ui";
 import { TrainingForm } from "@/components/training-form";
+import { getLocale } from "@/lib/i18n/server";
+import { panelTrainingCopy } from "@/lib/i18n/pages/panel-training";
 
-export const metadata: Metadata = { title: "Antrenman Ekle", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelTrainingCopy[await getLocale()];
+  return { title: copy.meta.create, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function NewTrainingPage() {
-  const user = await requireUser();
+  const [user, locale] = await Promise.all([requireUser(), getLocale()]);
+  const t = panelTrainingCopy[locale].create;
 
   const gyms = await safe(
     () =>
@@ -21,7 +28,7 @@ export default async function NewTrainingPage() {
   );
 
   return (
-    <Section title="Antrenman Ekle" subtitle="Seansını kaydet — streak sayacın devam etsin">
+    <Section title={t.title} subtitle={t.subtitle}>
       <Card>
         <CardBody>
           <TrainingForm gyms={gyms.map((g) => g.gym)} />

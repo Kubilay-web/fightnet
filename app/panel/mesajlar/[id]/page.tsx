@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -9,13 +9,22 @@ import { Card, CardBody, Alert } from "@/components/ui";
 import { ReportButton } from "@/components/report-button";
 import { MessageComposer } from "@/components/message-forms";
 import { formatDateTime, cn } from "@/lib/utils";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { panelMessagesCopy } from "@/lib/i18n/pages/panel-messages";
 
-export const metadata: Metadata = { title: "Sohbet", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelMessagesCopy[await getLocale()];
+  return { title: copy.thread.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = panelMessagesCopy[locale];
 
   const membership = await prisma.conversationMember.findFirst({
     where: { conversationId: id, userId: user.id },
@@ -59,12 +68,12 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       <div className="flex items-center gap-3">
         <Link
           href="/panel/mesajlar"
-          aria-label="Mesajlara dön"
+          aria-label={copy.thread.backAria}
           className="inline-flex size-9 items-center justify-center rounded-xl text-muted transition-colors hover:bg-ink-100 dark:hover:bg-ink-800"
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <Avatar src={partner?.avatarUrl} name={partner?.name ?? "Silinmiş kullanıcı"} size="md" />
+        <Avatar src={partner?.avatarUrl} name={partner?.name ?? copy.deletedUser} size="md" />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 truncate font-bold">
             {partner ? (
@@ -72,13 +81,13 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
                 {partner.name}
               </Link>
             ) : (
-              "Silinmiş kullanıcı"
+              copy.deletedUser
             )}
             {partner && <VerifiedMark level={partner.verification} />}
           </p>
           {partner?.isMinor && (
             <p className="text-[11px] font-bold uppercase tracking-wide text-amber-500">
-              18 yaş altı — koruma kuralları geçerli
+              {copy.thread.minorNotice}
             </p>
           )}
         </div>
@@ -88,14 +97,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
       </div>
 
       {partner?.isBanned && (
-        <Alert tone="amber">Bu kullanıcının hesabı askıya alınmış. Yeni mesaj gönderilemez.</Alert>
+        <Alert tone="amber">{copy.thread.bannedNotice}</Alert>
       )}
 
       <Card>
         <CardBody className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
           {messages.length === 0 && (
             <p className="py-8 text-center text-sm text-muted">
-              Henüz mesaj yok. İlk mesajı sen yaz.
+              {copy.thread.empty}
             </p>
           )}
           {messages.map((m) => {
@@ -112,7 +121,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
                 >
                   {m.body}
                 </div>
-                <span className="px-1 text-[11px] text-muted">{formatDateTime(m.createdAt)}</span>
+                <span className="px-1 text-[11px] text-muted">{formatDateTime(m.createdAt, LOCALE_TAG[locale])}</span>
               </div>
             );
           })}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Send, Radio, Loader2 } from "lucide-react";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { Badge, Card, CardBody, Select } from "@/components/ui";

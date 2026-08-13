@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
 import { requireUser } from "@/lib/auth";
 import { Card, CardBody, Section, Alert } from "@/components/ui";
 import { SparringListingForm } from "@/components/sparring-listing-form";
+import { getLocale } from "@/lib/i18n/server";
+import { panelSparringCopy } from "@/lib/i18n/pages/panel-sparring";
 
-export const metadata: Metadata = { title: "Sparring İlanı Ver", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelSparringCopy[await getLocale()];
+  return { title: copy.meta.create, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function NewSparringPage() {
-  const user = await requireUser();
+  const [user, locale] = await Promise.all([requireUser(), getLocale()]);
+  const t = panelSparringCopy[locale].create;
 
   const gyms = await safe(
     () =>
@@ -22,12 +29,12 @@ export default async function NewSparringPage() {
   );
 
   return (
-    <Section title="Sparring İlanı Ver" subtitle="Bölgendeki uygun partnerler seni bulsun">
+    <Section title={t.title} subtitle={t.subtitle}>
       {user.verification === "LEVEL_0" && (
-        <Alert tone="amber" title="Doğrulama gerekli">
-          Sparring ilanı vermek için Seviye 1 (kimlik doğrulanmış) olmalısın. Bu, herkesin güvenliği için zorunludur.{" "}
+        <Alert tone="amber" title={t.verifyTitle}>
+          {t.verifyBody}{" "}
           <Link href="/panel/dogrulama" className="font-bold underline">
-            Doğrulamayı başlat
+            {t.verifyCta}
           </Link>
         </Alert>
       )}

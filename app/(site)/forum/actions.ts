@@ -8,6 +8,7 @@ import { CACHE_TAGS } from "@/lib/queries";
 import { notify } from "@/lib/notify";
 import { uniqueSlug } from "@/lib/utils";
 import { threadSchema, commentSchema } from "@/lib/validators";
+import { moderate, attachResult } from "@/lib/moderation";
 import type { ActionState } from "@/app/panel/actions";
 
 export async function createThread(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -35,6 +36,15 @@ export async function createThread(_prev: ActionState, fd: FormData): Promise<Ac
   }
   const d = parsed.data;
 
+  // §11.3 — Konu başlığı ve gövdesi ön filtreden geçer
+  const decision = await moderate({
+    targetType: "THREAD",
+    userId: session.sub,
+    kind: "TEXT",
+    text: `${d.title} ${d.body}`,
+  });
+  if (decision.state === "REMOVED") return { error: decision.message ?? "Konu açılamadı" };
+
   const thread = await prisma.forumThread.create({
     data: {
       slug: uniqueSlug(d.title),
@@ -46,8 +56,10 @@ export async function createThread(_prev: ActionState, fd: FormData): Promise<Ac
       linkedUserId: d.linkedUserId || null,
       linkedEventId: d.linkedEventId || null,
     },
-    select: { slug: true },
+    select: { id: true, slug: true },
   });
+
+  await attachResult({ targetType: "THREAD", targetId: thread.id, decision });
 
   await prisma.forumCategory.update({
     where: { id: d.categoryId },
@@ -73,14 +85,25 @@ export async function replyThread(threadId: string, _prev: ActionState, fd: Form
   if (!thread) return { error: "Konu bulunamadı" };
   if (thread.isLocked) return { error: "Bu konu kilitli" };
 
-  await prisma.forumPost.create({
+  const decision = await moderate({
+    targetType: "FORUM_POST",
+    userId: session.sub,
+    kind: "TEXT",
+    text: parsed.data.body,
+  });
+  if (decision.state === "REMOVED") return { error: decision.message ?? "Yanıt gönderilemedi" };
+
+  const reply = await prisma.forumPost.create({
     data: {
       threadId: thread.id,
       userId: session.sub,
       body: parsed.data.body,
       parentId: parsed.data.parentId || null,
     },
+    select: { id: true },
   });
+
+  await attachResult({ targetType: "FORUM_POST", targetId: reply.id, decision });
 
   await prisma.forumThread.update({
     where: { id: thread.id },

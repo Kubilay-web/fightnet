@@ -368,6 +368,15 @@ model User {
   lastActiveAt DateTime?
   lastLoginAt  DateTime?
 
+  // Ödeme (§4.6/§4.7) — kart verisi asla burada tutulmaz, yalnızca Stripe kimlikleri
+  stripeCustomerId String?
+  stripeAccountId  String?       // Connect Express — creator/antrenör ödemeleri
+  connectStatus    ConnectStatus @default(NONE)
+
+  // §4.4 Premium (reklamsız) ve §4.3 Antrenör-Araç SaaS erişim pencereleri
+  premiumUntil    DateTime?
+  coachToolsUntil DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -417,6 +426,17 @@ model User {
   eventRegistrations  EventRegistration[]
   pushSubscriptions   PushSubscription[]
   appeals             Appeal[]
+
+  // Faz 2/3 genişletmesi
+  payments             Payment[]
+  platformSubs         PlatformSubscription[]
+  coachingOffers       CoachingOffer[]        @relation("CoachingOffers")
+  coachingAsCoach      CoachingSession[]      @relation("CoachingAsCoach")
+  coachingAsAthlete    CoachingSession[]      @relation("CoachingAsAthlete")
+  ppvPurchases         PpvPurchase[]
+  memberContracts      GymContract[]          @relation("ContractMember")
+  invoices             Invoice[]
+  deviceConnections    DeviceConnection[]
 
   @@index([role])
   @@index([verification])
@@ -587,12 +607,22 @@ model Gym {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // §4.6 — Ödeme ve sözleşme yönetimi. Sözleşme modülü yalnızca pilot
+  // salonlarda açılır (mevcut yazılımı olmayan yeni salonlar).
+  stripeAccountId  String?
+  connectStatus    ConnectStatus @default(NONE)
+  contractsEnabled Boolean       @default(false)
+  billingIban      String? // toplu pain.008 üretimi için alacaklı hesabı
+  billingBic       String?
+
   memberships GymMembership[]
   coaches     GymCoach[]
   classes     GymClass[]
   bookings    Booking[]
   events      Event[]
   reviews     GymReview[]
+  contracts   GymContract[]
+  invoices    Invoice[]
 
   @@index([city, country])
   @@index([status, isVerified])
@@ -899,6 +929,8 @@ model Event {
   fights        Fight[]
   liveComments  LiveComment[]
   registrations EventRegistration[]
+  streamChannel StreamChannel?
+  ppvPurchases  PpvPurchase[]
 
   @@index([status, startsAt])
   @@index([city, startsAt])
@@ -1673,4 +1705,597 @@ model SiteSetting {
   updatedAt DateTime @updatedAt
 
   @@map("site_settings")
+}
+
+// ===========================================================================
+// FAZ 2 / FAZ 3 GENİŞLETMESİ
+// Ödemeler, online koçluk, platform abonelikleri, salon sözleşme yönetimi,
+// PPV/canlı yayın, B2B veri lisansı, donanım senkronu, otomatik moderasyon.
+// ===========================================================================
+
+/// Ödemenin hangi ürün için yapıldığı — tek Payment tablosu tüm akışları taşır
+enum PaymentPurpose {
+  CREATOR_SUBSCRIPTION // §4.7
+  MARKETPLACE_ORDER    // §4.4 ekipman pazarı
+  PPV_TICKET           // §4.4 canlı yayın
+  PREMIUM              // §4.4 reklamsız kademe
+  COACH_TOOLS          // §4.3 Antrenör-Araç SaaS
+  COACHING_SESSION     // §4.3 online koçluk
+  GYM_PLAN             // §4.6 salon aboneliği
+  EVENT_REGISTRATION   // §4.4 müsabaka kaydı
+  DATA_LICENSE         // §4.4 B2B veri lisansı
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+/// §4.3 / §4.4 — platform seviyesinde satılan iki abonelik
+enum PlatformPlan {
+  PREMIUM     // son kullanıcı, reklamsız — 3-5 EUR/ay
+  COACH_TOOLS // antrenör araçları — 12-15 EUR/ay
+}
+
+enum CoachingFormat {
+  VIDEO_CALL   // canlı görüntülü seans
+  ASYNC_REVIEW // sporcu video yükler, antrenör yorumlar
+  TRAINING_PLAN
+  CHAT
+}
+
+enum CoachingStatus {
+  REQUESTED
+  ACCEPTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum ContractStatus {
+  DRAFT
+  SENT
+  SIGNED
+  ACTIVE
+  TERMINATED
+  CANCELLED
+}
+
+enum MandateStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+  FAILED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum DataLicenseStatus {
+  REQUESTED
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  REJECTED
+}
+
+enum HealthProviderKind {
+  APPLE_HEALTH
+  GOOGLE_HEALTH
+  GARMIN
+  POLAR
+}
+
+enum StreamStatus {
+  IDLE
+  LIVE
+  ENDED
+}
+
+/// Stripe Connect Express hesabının durumu
+enum ConnectStatus {
+  NONE
+  ONBOARDING
+  ACTIVE
+  RESTRICTED
+}
+
+// ---------------------------------------------------------------------------
+// ÖDEME ÇEKİRDEĞİ
+// ---------------------------------------------------------------------------
+
+/// Tüm ödeme akışlarının tek kaydı. Stripe Checkout oturumu açıldığında
+/// PENDING olarak yazılır, webhook geldiğinde PAID/FAILED durumuna döner.
+model Payment {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purpose PaymentPurpose
+  status  PaymentStatus  @default(PENDING)
+
+  /// Brüt tutar (EUR). Net/KDV ayrımı Invoice tarafında tutulur.
+  amount      Float
+  currency    String @default("EUR")
+  platformFee Float  @default(0)
+
+  /// İlgili kayıt (order, ppv, coaching session, gym contract ...)
+  refType String?
+  refId   String?
+
+  stripeSessionId       String? @unique
+  stripePaymentIntentId String?
+  stripeSubscriptionId  String?
+  /// Connect: tutarın aktarıldığı satıcı hesabı
+  destinationAccount    String?
+
+  failureReason String?
+  paidAt        DateTime?
+  refundedAt    DateTime?
+  metadata      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice Invoice?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([purpose, status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([refType, refId])
+  @@map("payments")
+}
+
+/// Webhook idempotansı — aynı Stripe olayı iki kez işlenmez
+model StripeEvent {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId     String   @unique
+  type        String
+  processedAt DateTime @default(now())
+  payload     Json?
+
+  @@index([type, processedAt(sort: Desc)])
+  @@map("stripe_events")
+}
+
+/// §4.3 / §4.4 — Premium (reklamsız) ve Antrenör-Araç SaaS abonelikleri
+model PlatformSubscription {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan   PlatformPlan
+  status SubscriptionStatus @default(ACTIVE)
+  price  Float
+
+  stripeSubscriptionId String?
+  stripeCustomerId     String?
+
+  startedAt        DateTime  @default(now())
+  currentPeriodEnd DateTime
+  cancelledAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, plan])
+  @@index([status, currentPeriodEnd])
+  @@map("platform_subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// §4.3 — ONLINE KOÇLUK
+// ---------------------------------------------------------------------------
+
+model CoachingOffer {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  coachId String @db.ObjectId
+  coach   User   @relation("CoachingOffers", fields: [coachId], references: [id], onDelete: Cascade)
+
+  title       String
+  slug        String         @unique
+  description String
+  format      CoachingFormat @default(VIDEO_CALL)
+  disciplines Discipline[]   @default([])
+  level       SkillLevel?
+
+  /// Seans başına ücret (EUR)
+  price       Float
+  durationMin Int   @default(60)
+  /// Aynı anda kabul edilen aktif öğrenci sayısı
+  capacity    Int   @default(10)
+
+  coverUrl String?
+  coverId  String?
+
+  isActive Boolean @default(true)
+  /// §11.1 — reşit olmayanlara açık mı (veli onayı ayrıca aranır)
+  minorsAllowed Boolean @default(false)
+
+  sessionCount Int   @default(0)
+  ratingAvg    Float @default(0)
+  ratingCount  Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions CoachingSession[]
+
+  @@index([isActive, disciplines])
+  @@index([coachId, isActive])
+  @@map("coaching_offers")
+}
+
+model CoachingSession {
+  id      String        @id @default(auto()) @map("_id") @db.ObjectId
+  offerId String        @db.ObjectId
+  offer   CoachingOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  coachId   String @db.ObjectId
+  coach     User   @relation("CoachingAsCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  athleteId String @db.ObjectId
+  athlete   User   @relation("CoachingAsAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+
+  status      CoachingStatus @default(REQUESTED)
+  price       Float
+  platformFee Float          @default(0)
+
+  scheduledAt DateTime?
+  /// Görüntülü seans bağlantısı — seans saatine kadar gizlenir
+  meetingUrl String?
+  /// ASYNC_REVIEW: sporcunun yüklediği video
+  submissionUrl String?
+  submissionId  String?
+  coachNote     String?
+  athleteNote   String?
+
+  rating Int?
+  review String?
+
+  paymentId String? @db.ObjectId
+
+  completedAt DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([coachId, status])
+  @@index([athleteId, status])
+  @@index([scheduledAt])
+  @@map("coaching_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// §4.4 — CANLI YAYIN VE PPV
+// ---------------------------------------------------------------------------
+
+model StreamChannel {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @unique @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  provider String @default("IVS") // IVS | EXTERNAL
+  /// IVS kanal ARN degeri — yetkili oynatma jetonu bununla imzalanır
+  channelArn  String?
+  playbackUrl String
+  /// Yayın anahtarı yalnızca organizatöre gösterilir
+  streamKey      String?
+  ingestEndpoint String?
+  /// PPV kanallarında true — jetonsuz oynatma reddedilir
+  authorized Boolean @default(false)
+
+  status     StreamStatus @default(IDLE)
+  viewerPeak Int          @default(0)
+  startedAt  DateTime?
+  endedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("stream_channels")
+}
+
+model PpvPurchase {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String @db.ObjectId
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  price       Float
+  platformFee Float         @default(0)
+  status      PaymentStatus @default(PENDING)
+  paymentId   String?       @db.ObjectId
+
+  /// Erişim penceresi — etkinlik sonrası tekrar izleme süresi
+  accessUntil DateTime?
+  watchedSec  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId, status])
+  @@map("ppv_purchases")
+}
+
+// ---------------------------------------------------------------------------
+// §4.6 — SALON SÖZLEŞME YÖNETİMİ (SEPA + FATURA + eIDAS)
+// ---------------------------------------------------------------------------
+
+model GymContract {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  gymId String @db.ObjectId
+  gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  /// Üye — salon ile sözleşme imzalayan sporcu
+  memberId String @db.ObjectId
+  member   User   @relation("ContractMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  contractNo String         @unique
+  status     ContractStatus @default(DRAFT)
+
+  planName String
+  /// Aylık ücret (KDV dahil brüt)
+  monthlyFee Float
+  /// Asgari süre (ay) — BGB 309 Nr. 9 uyarınca en fazla 24
+  termMonths Int @default(12)
+  /// Fesih ihbar süresi (gün)
+  noticeDays Int @default(30)
+
+  startsAt          DateTime
+  endsAt            DateTime?
+  terminatedAt      DateTime?
+  terminationReason String?
+
+  /// İmzalanan metnin tamamı — eIDAS mührü bunun özetine bağlıdır
+  documentText String
+  /// SignatureSeal JSON: hash, imzalayan, zaman damgası, HMAC mühür
+  signature Json?
+  signedAt  DateTime?
+
+  mandate  SepaMandate?
+  invoices Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gymId, status])
+  @@index([memberId, status])
+  @@map("gym_contracts")
+}
+
+/// SEPA Lastschriftmandat. Ham IBAN saklanmaz — yalnızca maske ve parmak izi.
+model SepaMandate {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  contractId String      @unique @db.ObjectId
+  contract   GymContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  mandateRef String        @unique
+  status     MandateStatus @default(PENDING)
+
+  debtorName      String
+  ibanMasked      String
+  ibanFingerprint String
+  bic             String?
+
+  /// FRST -> ilk tahsilat, sonrasında RCUR
+  sequence  String    @default("FRST")
+  signedAt  DateTime?
+  revokedAt DateTime?
+
+  /// Stripe SEPA Direct Debit ödeme yöntemi
+  stripePaymentMethodId String?
+
+  lastCollectedAt DateTime?
+  failureCount    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("sepa_mandates")
+}
+
+/// GoBD uyumlu fatura. Numaralar boşluksuz, 10 yıl saklanır.
+model Invoice {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  invoiceNo String        @unique
+  status    InvoiceStatus @default(DRAFT)
+
+  /// Fatura kesilen taraf
+  userId String? @db.ObjectId
+  user   User?   @relation(fields: [userId], references: [id])
+  gymId  String? @db.ObjectId
+  gym    Gym?    @relation(fields: [gymId], references: [id])
+
+  contractId String?      @db.ObjectId
+  contract   GymContract? @relation(fields: [contractId], references: [id])
+  paymentId  String?      @unique @db.ObjectId
+  payment    Payment?     @relation(fields: [paymentId], references: [id])
+
+  /// Satırlar: [{description, quantity, unitNet, vatRate}]
+  lines Json
+
+  net      Float
+  vatRate  Float
+  vat      Float
+  gross    Float
+  currency String @default("EUR")
+  /// Fatura adresinin ülkesi — KDV oranı buradan gelir
+  country  String @default("DE")
+
+  issuedAt DateTime?
+  dueAt    DateTime?
+  paidAt   DateTime?
+  /// GoBD: iptal yerine ters kayıt (Storno)
+  cancelledAt  DateTime?
+  reversalOfId String?   @db.ObjectId
+
+  pdfUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gymId, issuedAt(sort: Desc)])
+  @@index([userId, issuedAt(sort: Desc)])
+  @@index([status, dueAt])
+  @@map("invoices")
+}
+
+/// Yıl bazında boşluksuz fatura numarası sayacı (GoBD)
+model InvoiceCounter {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  year     Int    @unique
+  sequence Int    @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("invoice_counters")
+}
+
+// ---------------------------------------------------------------------------
+// §4.4 — B2B VERİ LİSANSI
+// ---------------------------------------------------------------------------
+
+model DataLicense {
+  id           String  @id @default(auto()) @map("_id") @db.ObjectId
+  organization String
+  contactName  String
+  contactEmail String
+  vatId        String?
+  country      String  @default("DE")
+
+  status DataLicenseStatus @default(REQUESTED)
+  /// Erişilebilen veri kümeleri: events, fights, gyms, athletes_public
+  scopes String[]          @default([])
+  /// Yalnızca herkese açık (§8.3 PUBLIC) veriler lisanslanır
+  useCase String
+
+  /// Yıllık ücret (EUR)
+  annualFee Float @default(0)
+  /// Dakikada istek üst sınırı
+  rateLimit Int   @default(60)
+
+  /// API anahtarı yalnızca hash olarak saklanır
+  keyHash   String? @unique
+  keyPrefix String?
+
+  startsAt     DateTime?
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+
+  reviewNote String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([status])
+  @@map("data_licenses")
+}
+
+// ---------------------------------------------------------------------------
+// §4.4 — DONANIM ENTEGRASYONU
+// ---------------------------------------------------------------------------
+
+model DeviceConnection {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider HealthProviderKind
+  /// Cihaz üstü sağlayıcılarda istemci jetonunun SHA-256 özeti
+  tokenHash String? @unique
+  /// Bulut sağlayıcılarda OAuth kimlikleri
+  externalUserId String?
+  accessToken    String?
+  refreshToken   String?
+  expiresAt      DateTime?
+
+  /// §5.7 — sağlık verisi için ayrı ve açık izin
+  consentAt   DateTime
+  revokedAt   DateTime?
+  isActive    Boolean   @default(true)
+  deviceName  String?
+  lastSyncAt  DateTime?
+  sampleCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  samples HealthSample[]
+
+  @@unique([userId, provider])
+  @@index([isActive, lastSyncAt])
+  @@map("device_connections")
+}
+
+/// Saatten gelen ham aktivite. Antrenman günlüğüne dönüştürülür,
+/// izin geri alındığında bu kayıtlar da silinir.
+model HealthSample {
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
+  connectionId String           @db.ObjectId
+  connection   DeviceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  userId       String           @db.ObjectId
+
+  externalId   String
+  startedAt    DateTime
+  durationMin  Int
+  activityType String?
+  calories     Int?
+  avgHeartRate Int?
+  maxHeartRate Int?
+  distanceM    Int?
+
+  /// Oluşturulan antrenman kaydı
+  trainingLogId String? @db.ObjectId
+
+  createdAt DateTime @default(now())
+
+  @@unique([connectionId, externalId])
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("health_samples")
+}
+
+// ---------------------------------------------------------------------------
+// §11.3 — OTOMATİK MODERASYON SONUCU
+// ---------------------------------------------------------------------------
+
+/// Ön filtrenin kararı. Şeffaflık raporu (§11.5) bu tablodan üretilir.
+model ModerationResult {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  /// POST | COMMENT | THREAD | MESSAGE | PRODUCT | COACHING_OFFER
+  targetType String
+  targetId   String @db.ObjectId
+
+  verdict  ModerationState
+  score    Float           @default(0)
+  labels   String[]        @default([])
+  provider String
+  reason   String?
+
+  /// İnsan incelemesi sonucu — otomatik kararın isabetini ölçer
+  humanVerdict ModerationState?
+  reviewerId   String?          @db.ObjectId
+  reviewedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([verdict, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("moderation_results")
 }

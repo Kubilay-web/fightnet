@@ -4,6 +4,9 @@ import "./globals.css";
 import { themeScript } from "@/components/layout/theme-toggle";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieConsent } from "@/components/cookie-consent";
+import { LocaleProvider } from "@/components/i18n/provider";
+import { getDict, getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG, OG_LOCALE, LOCALES } from "@/lib/i18n/config";
 
 const sans = Inter({
   subsets: ["latin", "latin-ext"],
@@ -23,14 +26,16 @@ const display = Barlow_Condensed({
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, dict] = await Promise.all([getLocale(), getDict()]);
+
+  return {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "FIGHTNET — DACH'ın bağımsız dövüş sporu platformu",
+    default: `FIGHTNET — ${dict.meta.tagline}`,
     template: "%s · FIGHTNET",
   },
-  description:
-    "Almanya, Avusturya ve İsviçre'de dövüş sporları için bağımsız platform. Doğrulanmış dövüşçü profilleri, salon bulucu, sparring arama, canlı skor ve topluluk.",
+  description: dict.meta.description,
   keywords: [
     "dövüş sporu", "MMA", "boks", "BJJ", "Muay Thai", "sparring partneri",
     "dövüş salonu", "Kampfsport", "Fightnet", "livescore",
@@ -39,12 +44,11 @@ export const metadata: Metadata = {
   authors: [{ name: "FIGHTNET" }],
   openGraph: {
     type: "website",
-    locale: "tr_TR",
-    alternateLocale: ["de_DE", "en_US"],
+    locale: OG_LOCALE[locale],
+    alternateLocale: LOCALES.filter((l) => l !== locale).map((l) => OG_LOCALE[l]),
     siteName: "FIGHTNET",
-    title: "FIGHTNET — DACH'ın bağımsız dövüş sporu platformu",
-    description:
-      "Hessen'deki bir amatör şampiyonun tıpkı bir UFC dövüşçüsü gibi görünür olduğu ilk platform.",
+    title: `FIGHTNET — ${dict.meta.tagline}`,
+    description: dict.home.heroBody,
   },
   twitter: { card: "summary_large_image" },
   robots: { index: true, follow: true },
@@ -59,7 +63,8 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
-};
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -72,9 +77,15 @@ export const viewport: Viewport = {
   colorScheme: "dark light",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const [locale, dict] = await Promise.all([getLocale(), getDict()]);
+
   return (
-    <html lang="tr" className={`${sans.variable} ${display.variable} dark`} suppressHydrationWarning>
+    <html
+      lang={LOCALE_TAG[locale]}
+      className={`${sans.variable} ${display.variable} dark`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <link rel="preconnect" href="https://res.cloudinary.com" />
@@ -85,11 +96,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-blood-600 focus:px-4 focus:py-2 focus:font-bold focus:text-white"
         >
-          İçeriğe atla
+          {dict.common.skipToContent}
         </a>
-        {children}
+        <LocaleProvider locale={locale} dict={dict}>
+          {children}
+          <CookieConsent />
+        </LocaleProvider>
         <PwaRegister />
-        <CookieConsent />
       </body>
     </html>
   );

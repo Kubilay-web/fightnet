@@ -10,12 +10,21 @@ import { AdForm } from "@/components/ad-form";
 import { cld } from "@/lib/image";
 import { formatDate, compact } from "@/lib/utils";
 import { AD_PLACEMENTS } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { adminAdsCopy } from "@/lib/i18n/pages/admin-ops";
 
-export const metadata: Metadata = { title: "Reklamlar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminAdsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminAdsPage() {
   await requireAdmin();
+  const locale = await getLocale();
+  const t = adminAdsCopy[locale];
 
   const ads = await safe(
     () => prisma.ad.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
@@ -24,14 +33,13 @@ export default async function AdminAdsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Banner Reklamları" subtitle="Dövüş sporu markaları için reklam alanları">
-        <Alert tone="red" title="Politika">
-          <b>Spor bahis reklamı yayınlanmaz.</b> Alkol, doping ürünü ve aşırı kilo düşürme
-          ürünlerinin reklamı da kabul edilmez.
+      <Section title={t.title} subtitle={t.subtitle}>
+        <Alert tone="red" title={t.policy.title}>
+          <b>{t.policy.bold}</b> {t.policy.rest}
         </Alert>
       </Section>
 
-      <Section title="Yeni Reklam">
+      <Section title={t.newAd}>
         <Card>
           <CardBody>
             <AdForm />
@@ -39,9 +47,9 @@ export default async function AdminAdsPage() {
         </Card>
       </Section>
 
-      <Section title="Yayındaki Reklamlar">
+      <Section title={t.liveAds}>
         {ads.length === 0 ? (
-          <EmptyState icon={<Megaphone className="size-10" />} title="Reklam yok" />
+          <EmptyState icon={<Megaphone className="size-10" />} title={t.empty} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {ads.map((a) => {
@@ -54,11 +62,12 @@ export default async function AdminAdsPage() {
                   <CardBody className="flex flex-col gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <h3 className="min-w-0 max-w-full truncate font-bold">{a.name}</h3>
-                      <Badge tone={a.isActive ? "green" : "neutral"}>{a.isActive ? "Aktif" : "Pasif"}</Badge>
+                      <Badge tone={a.isActive ? "green" : "neutral"}>{a.isActive ? t.active : t.inactive}</Badge>
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       <Badge>{AD_PLACEMENTS.find((p) => p.value === a.placement)?.label ?? a.placement}</Badge>
                     </div>
                     <p className="text-xs text-muted">
-                      {a.advertiser} · {formatDate(a.startsAt)} – {formatDate(a.endsAt)}
+                      {a.advertiser} · {formatDate(a.startsAt, LOCALE_TAG[locale])} – {formatDate(a.endsAt, LOCALE_TAG[locale])}
                     </p>
                     <p className="flex flex-wrap items-center gap-3 text-xs text-muted">
                       <span className="flex items-center gap-1">
@@ -67,18 +76,18 @@ export default async function AdminAdsPage() {
                       <span className="flex items-center gap-1">
                         <MousePointerClick className="size-3" /> {compact(a.clicks)}
                       </span>
-                      <span>CTR %{ctr}</span>
+                      <span>{t.ctr(ctr)}</span>
                     </p>
 
                     <div className="flex gap-2 border-t border-[var(--border)] pt-3">
                       <form action={toggleAd.bind(null, a.id, !a.isActive)}>
                         <Button type="submit" size="sm" variant="outline">
-                          {a.isActive ? "Duraklat" : "Yayınla"}
+                          {a.isActive ? t.pause : t.publish}
                         </Button>
                       </form>
                       <form action={deleteAd.bind(null, a.id)}>
                         <Button type="submit" size="sm" variant="danger">
-                          <Trash2 className="size-4" /> Sil
+                          <Trash2 className="size-4" /> {t.delete}
                         </Button>
                       </form>
                     </div>

@@ -1,37 +1,55 @@
-import Link from "next/link";
-import Image from "next/image";
+import type { Metadata } from "next";
+import { Link } from "@/components/i18n/link";
 import { Suspense } from "react";
 import {
   ArrowRight, ShieldCheck, Swords, MapPin, Radio, Dumbbell,
   Users, Sparkles, TrendingUp, Award, Zap,
 } from "lucide-react";
-import { getHomeData, getActiveAd } from "@/lib/queries";
+import { getHomeData } from "@/lib/queries";
+import { AdSlot } from "@/components/ad-slot";
 import { FighterCard, GymCard, EventCard, PostCard } from "@/components/cards";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
-import { Badge, ButtonLink, Card, LiveBadge, Section, Skeleton } from "@/components/ui";
+import { Badge, ButtonLink, Card, Section, Skeleton } from "@/components/ui";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { compact, formatRecord } from "@/lib/utils";
 import { DISCIPLINES } from "@/lib/constants";
-import { cld } from "@/lib/image";
+import { getDict, getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { homeCopy } from "@/lib/i18n/pages/home";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 export const revalidate = 60;
 
-export default function HomePage() {
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = homeCopy[await getLocale()];
+  return {
+    // Ana sayfada şablon ("%s · FIGHTNET") yerine tam marka başlığı kullanılır.
+    title: { absolute: copy.meta.title },
+    description: copy.meta.description,
+    alternates: await metadataAlternates("/"),
+  };
+}
+
+export default async function HomePage() {
+  const [locale, dict] = await Promise.all([getLocale(), getDict()]);
+  const copy = homeCopy[locale];
+
   return (
     <>
-      <Hero />
+      <Hero copy={copy} dict={dict} />
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent />
       </Suspense>
-      <Principles />
-      <WaitlistSection />
+      <Principles copy={copy} />
+      <WaitlistSection copy={copy} />
     </>
   );
 }
 
+type Copy = (typeof homeCopy)[keyof typeof homeCopy];
+
 // ---------------------------------------------------------------------------
 
-function Hero() {
+function Hero({ copy, dict }: { copy: Copy; dict: Dictionary }) {
   return (
     <section className="relative overflow-hidden border-b border-[var(--border)]">
       <div className="absolute inset-0 mesh-hero" />
@@ -40,45 +58,41 @@ function Hero() {
       <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
         <div className="flex max-w-3xl flex-col gap-6">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="red">Beta · Davetli Erken Erişim</Badge>
-            <Badge tone="gold">Kurucu Üye 50 €/ay</Badge>
+            <Badge tone="red">{copy.hero.badgeBeta}</Badge>
+            <Badge tone="gold">{copy.hero.badgeFounder}</Badge>
           </div>
 
           <h1 className="font-display text-4xl font-black leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
-            Hessen'deki amatör şampiyon,
+            {dict.home.heroTitleTop}
             <span className="block bg-gradient-to-r from-blood-500 to-gold-500 bg-clip-text text-transparent">
-              bir UFC dövüşçüsü kadar görünür.
+              {dict.home.heroTitleAccent}
             </span>
           </h1>
 
-          <p className="max-w-2xl text-base text-muted sm:text-lg">
-            FIGHTNET, DACH bölgesinde dövüş sporları için bağımsız platformdur.
-            Doğrulanmış dövüşçü profilleri, salon bulucu, sparring eşleştirme, canlı skor
-            ve topluluk — hepsi tek yerde.
-          </p>
+          <p className="max-w-2xl text-base text-muted sm:text-lg">{dict.home.heroBody}</p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <ButtonLink href="/kayit" size="lg">
-              Ücretsiz Katıl
+              {dict.home.ctaPrimary}
               <ArrowRight className="size-4" />
             </ButtonLink>
             <ButtonLink href="/dovuscular" variant="outline" size="lg">
-              Dövüşçüleri Keşfet
+              {copy.hero.ctaFighters}
             </ButtonLink>
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 text-sm text-muted">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="size-4 text-emerald-500" />
-              3 seviyeli doğrulama
+              {copy.hero.trustVerification}
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin className="size-4 text-blood-500" />
-              AB'de barındırma · KVKK
+              {copy.hero.trustHosting}
             </span>
             <span className="flex items-center gap-1.5">
               <Zap className="size-4 text-gold-500" />
-              Federasyondan bağımsız
+              {copy.hero.trustIndependent}
             </span>
           </div>
         </div>
@@ -103,39 +117,31 @@ function Hero() {
 // ---------------------------------------------------------------------------
 
 async function HomeContent() {
-  const [data, ad] = await Promise.all([getHomeData(), getActiveAd("HOME_TOP")]);
+  const [data, locale, dict] = await Promise.all([getHomeData(), getLocale(), getDict()]);
+  const copy = homeCopy[locale];
   const { spotlight, liveEvents, upcomingEvents, topFighters, featuredGyms, latestPosts, stats } = data;
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-14 px-4 py-12 sm:px-6 sm:gap-20 sm:py-16">
       {/* Platform istatistikleri */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile icon={Users} label="Sporcu" value={compact(stats.fighters)} />
-        <StatTile icon={ShieldCheck} label="Doğrulanmış" value={compact(stats.verified)} />
-        <StatTile icon={Dumbbell} label="Salon" value={compact(stats.gyms)} />
-        <StatTile icon={Award} label="Etkinlik" value={compact(stats.events)} />
+        <StatTile icon={Users} label={dict.home.statAthletes} value={compact(stats.fighters)} />
+        <StatTile icon={ShieldCheck} label={dict.home.statVerified} value={compact(stats.verified)} />
+        <StatTile icon={Dumbbell} label={dict.home.statGyms} value={compact(stats.gyms)} />
+        <StatTile icon={Award} label={dict.home.statEvents} value={compact(stats.events)} />
       </div>
 
-      {ad && (
-        <Link href={ad.linkUrl} target="_blank" rel="sponsored noopener" className="block overflow-hidden rounded-2xl border border-[var(--border)]">
-          <Image
-            src={cld(ad.imageUrl, { w: 1280, h: 200 })}
-            alt={ad.advertiser}
-            width={1280}
-            height={200}
-            className="h-auto w-full object-cover"
-          />
-        </Link>
-      )}
+      {/* §4.4 — Premium abonelere sunucuda hiç render edilmez */}
+      <AdSlot placement="HOME_TOP" />
 
       {/* Canlı etkinlikler */}
       {liveEvents.length > 0 && (
         <Section
-          title="Şu An Canlı"
-          subtitle="Devam eden müsabakaları anlık takip et"
+          title={dict.home.liveNow}
+          subtitle={dict.home.liveNowSub}
           action={
             <ButtonLink href="/etkinlikler?status=LIVE" variant="ghost" size="sm">
-              Tümü <ArrowRight className="size-4" />
+              {dict.common.all} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -149,7 +155,7 @@ async function HomeContent() {
 
       {/* Günün sporcusu — §4.1 Spotlight */}
       {spotlight?.user && (
-        <Section title="Günün Sporcusu" subtitle="Her gün öne çıkan bir dövüşçü">
+        <Section title={dict.home.spotlight} subtitle={copy.sections.spotlightSub}>
           <Card className="overflow-hidden">
             <div className="grid md:grid-cols-[280px_1fr]">
               <div className="relative flex items-center justify-center bg-gradient-to-br from-blood-600 to-blood-900 p-8">
@@ -164,7 +170,7 @@ async function HomeContent() {
               </div>
               <div className="flex flex-col justify-center gap-3 p-6 sm:p-8">
                 <Badge tone="gold" className="w-fit">
-                  <Sparkles className="size-3" /> Spotlight
+                  <Sparkles className="size-3" /> {copy.sections.spotlightBadge}
                 </Badge>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-display text-2xl font-black sm:text-3xl">{spotlight.user.name}</h3>
@@ -183,12 +189,14 @@ async function HomeContent() {
                       )}
                     </span>
                   )}
-                  <span className="text-muted">{compact(spotlight.user.followerCount)} takipçi</span>
+                  <span className="text-muted">
+                    {compact(spotlight.user.followerCount)} {copy.sections.followers}
+                  </span>
                   {spotlight.user.city && <span className="text-muted">{spotlight.user.city}</span>}
                 </div>
 
                 <ButtonLink href={`/dovuscular/${spotlight.user.slug}`} className="mt-2 w-fit" size="sm">
-                  Profili Gör <ArrowRight className="size-4" />
+                  {copy.sections.viewProfile} <ArrowRight className="size-4" />
                 </ButtonLink>
               </div>
             </div>
@@ -199,11 +207,11 @@ async function HomeContent() {
       {/* Yaklaşan etkinlikler */}
       {upcomingEvents.length > 0 && (
         <Section
-          title="Yaklaşan Etkinlikler"
-          subtitle="Yerel ve küresel dövüş sporu takvimi"
+          title={dict.home.upcoming}
+          subtitle={copy.sections.upcomingSub}
           action={
             <ButtonLink href="/etkinlikler" variant="ghost" size="sm">
-              Takvim <ArrowRight className="size-4" />
+              {copy.sections.calendar} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -218,11 +226,11 @@ async function HomeContent() {
       {/* Öne çıkan dövüşçüler */}
       {topFighters.length > 0 && (
         <Section
-          title="Öne Çıkan Dövüşçüler"
-          subtitle="Doğrulanmış profiller — amatörden profesyonele"
+          title={dict.home.topFighters}
+          subtitle={copy.sections.fightersSub}
           action={
             <ButtonLink href="/dovuscular" variant="ghost" size="sm">
-              Tümü <ArrowRight className="size-4" />
+              {dict.common.all} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -237,11 +245,11 @@ async function HomeContent() {
       {/* Salonlar */}
       {featuredGyms.length > 0 && (
         <Section
-          title="Salonlar"
-          subtitle="Bölgendeki dövüş sporu salonlarını bul, deneme antrenmanı ayarla"
+          title={dict.home.featuredGyms}
+          subtitle={copy.sections.gymsSub}
           action={
             <ButtonLink href="/salonlar" variant="ghost" size="sm">
-              Salon Bulucu <ArrowRight className="size-4" />
+              {dict.home.ctaSecondary} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -256,11 +264,11 @@ async function HomeContent() {
       {/* Keşfet */}
       {latestPosts.length > 0 && (
         <Section
-          title="Keşfet"
-          subtitle="Topluluktan en yeni antrenman ve müsabaka içerikleri"
+          title={dict.home.latestPosts}
+          subtitle={copy.sections.postsSub}
           action={
             <ButtonLink href="/akis" variant="ghost" size="sm">
-              Akış <ArrowRight className="size-4" />
+              {copy.sections.feed} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -272,7 +280,7 @@ async function HomeContent() {
         </Section>
       )}
 
-      <FeatureGrid />
+      <FeatureGrid copy={copy} />
     </div>
   );
 }
@@ -293,57 +301,28 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Users; label: str
 
 // ---------------------------------------------------------------------------
 
+/** İkon ve hedef; başlık/metin `homeCopy.features.items` içinde AYNI SIRADA. */
 const FEATURES = [
-  {
-    icon: ShieldCheck,
-    title: "3 Seviyeli Doğrulama",
-    body: "E-posta, kimlik+selfie (KYC) ve durum doğrulaması. Antrenörler 20 öğrencisine kadar kefil olabilir.",
-    href: "/panel/dogrulama",
-  },
-  {
-    icon: Dumbbell,
-    title: "Antrenman Günlüğü",
-    body: "Her seansı kaydet, streak sayacını büyüt. Çevrimdışı çalışır, bağlantı gelince senkronize olur.",
-    href: "/panel/antrenman",
-  },
-  {
-    icon: Swords,
-    title: "Sparring Eşleştirme",
-    body: "Bölgende disiplin, seviye ve kiloya göre partner bul. Her seans sonrası güvenlik değerlendirmesi.",
-    href: "/sparring",
-  },
-  {
-    icon: Radio,
-    title: "Yorumlu Canlı Skor",
-    body: "Devam eden müsabakaların anlık sonuçları, tur tur canlı yorum akışı.",
-    href: "/etkinlikler",
-  },
-  {
-    icon: MapPin,
-    title: "Salon Bulucu & Rezervasyon",
-    body: "Harita üzerinde salonları gör, deneme antrenmanı için özel akışla kayıt ol.",
-    href: "/salonlar",
-  },
-  {
-    icon: TrendingUp,
-    title: "Creator Abonelikleri",
-    body: "Sporcular kendi abonelik sayfasını açar, hayranlar destekler. %85 sporcuda kalır.",
-    href: "/creator",
-  },
+  { icon: ShieldCheck, href: "/panel/dogrulama" },
+  { icon: Dumbbell, href: "/panel/antrenman" },
+  { icon: Swords, href: "/sparring" },
+  { icon: Radio, href: "/etkinlikler" },
+  { icon: MapPin, href: "/salonlar" },
+  { icon: TrendingUp, href: "/creator" },
 ];
 
-function FeatureGrid() {
+function FeatureGrid({ copy }: { copy: Copy }) {
   return (
-    <Section title="Platformda neler var" subtitle="Topluluk önce — altyapı sonra">
+    <Section title={copy.features.heading} subtitle={copy.features.subtitle}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FEATURES.map(({ icon: Icon, title, body, href }) => (
-          <Link key={title} href={href}>
+        {FEATURES.map(({ icon: Icon, href }, i) => (
+          <Link key={href} href={href}>
             <Card hover className="flex h-full flex-col gap-3 p-5">
               <span className="flex size-11 items-center justify-center rounded-xl bg-blood-600/10 text-blood-500">
                 <Icon className="size-5" />
               </span>
-              <h3 className="font-bold">{title}</h3>
-              <p className="text-sm text-muted">{body}</p>
+              <h3 className="font-bold">{copy.features.items[i].title}</h3>
+              <p className="text-sm text-muted">{copy.features.items[i].body}</p>
             </Card>
           </Link>
         ))}
@@ -354,41 +333,18 @@ function FeatureGrid() {
 
 // ---------------------------------------------------------------------------
 
-const PRINCIPLES = [
-  {
-    n: "01",
-    title: "Community First",
-    body: "Önce topluluk FIGHTNET'te yaşasın. Sonra dövüş sporu FIGHTNET üzerinden organize edilsin.",
-  },
-  {
-    n: "02",
-    title: "Value First",
-    body: "Veri yalnızca kullanıcı net bir fayda gördüğünde toplanır. Gereksiz alan yok, veri toplama refleksi yok.",
-  },
-  {
-    n: "03",
-    title: "Görünürlük Seviyeleri",
-    body: "Her veri noktası için kimin ne göreceğine sen karar verirsin — herkese açıktan tamamen özele.",
-  },
-  {
-    n: "04",
-    title: "Trust by Design",
-    body: "Güven pazarlama vaadiyle değil sistem tasarımıyla kurulur: doğrulama, kefalet, şeffaf moderasyon.",
-  },
-];
-
-function Principles() {
+function Principles({ copy }: { copy: Copy }) {
   return (
     <section className="border-y border-[var(--border)] bg-[var(--bg-subtle)]">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
-        <h2 className="font-display text-2xl font-black sm:text-4xl">Temel İlkelerimiz</h2>
-        <p className="mt-2 max-w-2xl text-muted">
-          Dört ilke tüm özellik ve tasarım kararlarımıza pusula olur.
-        </p>
+        <h2 className="font-display text-2xl font-black sm:text-4xl">{copy.principles.heading}</h2>
+        <p className="mt-2 max-w-2xl text-muted">{copy.principles.subtitle}</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PRINCIPLES.map((p) => (
-            <div key={p.n} className="surface rounded-2xl p-5">
-              <span className="font-display text-3xl font-black text-blood-500/30">{p.n}</span>
+          {copy.principles.items.map((p, i) => (
+            <div key={p.title} className="surface rounded-2xl p-5">
+              <span className="font-display text-3xl font-black text-blood-500/30">
+                {String(i + 1).padStart(2, "0")}
+              </span>
               <h3 className="mt-2 font-bold">{p.title}</h3>
               <p className="mt-1.5 text-sm text-muted">{p.body}</p>
             </div>
@@ -401,18 +357,15 @@ function Principles() {
 
 // ---------------------------------------------------------------------------
 
-function WaitlistSection() {
+function WaitlistSection({ copy }: { copy: Copy }) {
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 mesh-hero opacity-60" />
       <div className="relative mx-auto max-w-3xl px-4 py-16 sm:px-6 sm:py-24">
         <div className="flex flex-col items-center gap-3 text-center">
-          <Badge tone="red">Beta Programı</Badge>
-          <h2 className="font-display text-3xl font-black sm:text-5xl">Erken erişim listesine katıl</h2>
-          <p className="max-w-xl text-muted">
-            FIGHTNET davetli erken erişimle başlıyor. Kurucu Üyeler ömür boyu 50 €/ay
-            ayrıcalıklı fiyatı korur ve profilinde Kurucu rozeti taşır.
-          </p>
+          <Badge tone="red">{copy.waitlist.badge}</Badge>
+          <h2 className="font-display text-3xl font-black sm:text-5xl">{copy.waitlist.heading}</h2>
+          <p className="max-w-xl text-muted">{copy.waitlist.body}</p>
         </div>
         <Card className="mt-8 p-5 sm:p-7">
           <WaitlistForm />

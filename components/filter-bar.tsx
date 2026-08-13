@@ -4,6 +4,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/components/i18n/provider";
 
 interface FilterDef {
   key: string;
@@ -29,6 +30,7 @@ export function FilterBar({
   searchKey?: string;
   searchPlaceholder?: string;
 }) {
+  const d = useDict();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -72,14 +74,14 @@ export function FilterBar({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={searchPlaceholder ?? "Ara…"}
-              aria-label="Ara"
+              placeholder={searchPlaceholder ?? d.filters.searchPlaceholder}
+              aria-label={d.filters.searchLabel}
               className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-9 pr-9 text-sm outline-none transition-colors focus:border-blood-500 focus:ring-2 focus:ring-blood-500/20 dark:border-ink-700 dark:bg-ink-900"
             />
             {query && (
               <button
                 onClick={() => setQuery("")}
-                aria-label="Aramayı temizle"
+                aria-label={d.filters.clearSearch}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700 dark:hover:text-ink-200"
               >
                 <X className="size-4" />
@@ -90,6 +92,7 @@ export function FilterBar({
 
         <button
           onClick={() => setOpen((v) => !v)}
+          aria-label={d.filters.openFilters}
           className={cn(
             "inline-flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition-colors sm:hidden",
             activeCount
@@ -134,7 +137,7 @@ export function FilterBar({
             className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold text-muted transition-colors hover:text-blood-500"
           >
             <X className="size-4" />
-            Temizle
+            {d.filters.clear}
           </button>
         )}
       </div>

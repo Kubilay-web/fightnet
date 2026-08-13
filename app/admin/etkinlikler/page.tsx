@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { CalendarDays, Radio, Check, X } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -10,14 +10,23 @@ import { Badge, Card, Section, EmptyState, Button, LiveBadge, Pagination } from 
 import { FilterBar } from "@/components/filter-bar";
 import { formatDateTime } from "@/lib/utils";
 import { EVENT_TYPE_LABEL, PAGE_SIZE } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { adminEventsCopy } from "@/lib/i18n/pages/admin-ops";
 
-export const metadata: Metadata = { title: "Etkinlikler", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminEventsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function AdminEventsPage({ searchParams }: { searchParams: SP }) {
   await requireAdmin();
+  const locale = await getLocale();
+  const t = adminEventsCopy[locale];
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
@@ -47,30 +56,30 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="flex flex-col gap-6">
-      <Section title="Etkinlikler" subtitle={`${total} etkinlik — yayın durumu ve canlı skor kontrolü`}>
+      <Section title={t.title} subtitle={t.subtitle(total)}>
         <FilterBar
           basePath="/admin/etkinlikler"
           current={sp}
           filters={[
             {
               key: "status",
-              label: "Durum",
+              label: t.filterStatus,
               options: [
-                { value: "DRAFT", label: "Taslak" },
-                { value: "PUBLISHED", label: "Yayında" },
-                { value: "LIVE", label: "Canlı" },
-                { value: "FINISHED", label: "Tamamlandı" },
-                { value: "CANCELLED", label: "İptal" },
+                { value: "DRAFT", label: t.status.draft },
+                { value: "PUBLISHED", label: t.status.published },
+                { value: "LIVE", label: t.status.live },
+                { value: "FINISHED", label: t.status.finished },
+                { value: "CANCELLED", label: t.status.cancelled },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="Etkinlik ara…"
+          searchPlaceholder={t.searchPlaceholder}
         />
       </Section>
 
       {events.length === 0 ? (
-        <EmptyState icon={<CalendarDays className="size-10" />} title="Etkinlik bulunamadı" />
+        <EmptyState icon={<CalendarDays className="size-10" />} title={t.empty} />
       ) : (
         <div className="flex flex-col gap-3">
           {events.map((e) => (
@@ -83,13 +92,14 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
                         {e.title}
                       </Link>
                       {e.status === "LIVE" ? <LiveBadge /> : <Badge>{e.status}</Badge>}
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       <Badge tone="red">{EVENT_TYPE_LABEL[e.type]}</Badge>
                     </div>
                     <p className="text-xs text-muted">
-                      {formatDateTime(e.startsAt)} · {e.city} · {e.organizer.name}
+                      {formatDateTime(e.startsAt, LOCALE_TAG[locale])} · {e.city} · {e.organizer.name}
                     </p>
                     <p className="text-xs text-muted">
-                      {e._count.fights} müsabaka · {e._count.liveComments} canlı yorum · {e.viewCount} görüntülenme
+                      {e._count.fights} {t.fights} · {e._count.liveComments} {t.liveComments} · {e.viewCount} {t.views}
                     </p>
                   </div>
                 </div>
@@ -98,27 +108,27 @@ export default async function AdminEventsPage({ searchParams }: { searchParams: 
                   {e.status !== "PUBLISHED" && (
                     <form action={setEventStatus.bind(null, e.id, "PUBLISHED")}>
                       <Button type="submit" size="sm">
-                        <Check className="size-4" /> Yayınla
+                        <Check className="size-4" /> {t.publish}
                       </Button>
                     </form>
                   )}
                   {e.status !== "LIVE" && (
                     <form action={setEventStatus.bind(null, e.id, "LIVE")}>
                       <Button type="submit" size="sm" variant="danger">
-                        <Radio className="size-4" /> Canlıya Al
+                        <Radio className="size-4" /> {t.goLive}
                       </Button>
                     </form>
                   )}
                   {e.status === "LIVE" && (
                     <form action={setEventStatus.bind(null, e.id, "FINISHED")}>
                       <Button type="submit" size="sm" variant="outline">
-                        Bitir
+                        {t.finish}
                       </Button>
                     </form>
                   )}
                   <form action={setEventStatus.bind(null, e.id, "CANCELLED")}>
                     <Button type="submit" size="sm" variant="outline">
-                      <X className="size-4" /> İptal
+                      <X className="size-4" /> {t.cancel}
                     </Button>
                   </form>
                 </div>

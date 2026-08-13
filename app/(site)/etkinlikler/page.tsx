@@ -7,13 +7,19 @@ import { safe, eventCardSelect } from "@/lib/queries";
 import { EventCard } from "@/components/cards";
 import { EmptyState, Pagination, Skeleton, Section, ButtonLink } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
-import { DISCIPLINES, PAGE_SIZE, EVENT_TYPE_LABEL } from "@/lib/constants";
+import { PAGE_SIZE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { disciplineOptions, eventTypeOptions } from "@/lib/i18n/labels";
+import { eventsCopy } from "@/lib/i18n/pages/events";
 
-export const metadata: Metadata = {
-  title: "Etkinlikler",
-  description:
-    "DACH bölgesindeki dövüş sporu etkinlikleri, turnuvalar ve galalar. Canlı skor ve yorum akışıyla takip et.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = eventsCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/etkinlikler"),
+  };
+}
 
 export const revalidate = 60;
 
@@ -21,15 +27,17 @@ type SP = Promise<Record<string, string | undefined>>;
 
 export default async function EventsPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
+  const locale = await getLocale();
+  const c = eventsCopy[locale].list;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Etkinlik Takvimi"
-        subtitle="Yerel ve küresel dövüş sporu etkinlikleri — canlı skorla"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           <ButtonLink href="/organizator/etkinlikler/yeni" variant="outline" size="sm">
-            Etkinlik Ekle
+            {c.addEvent}
           </ButtonLink>
         }
       >
@@ -39,26 +47,26 @@ export default async function EventsPage({ searchParams }: { searchParams: SP })
           filters={[
             {
               key: "discipline",
-              label: "Disiplin",
-              options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })),
+              label: c.filterDiscipline,
+              options: disciplineOptions(locale),
             },
             {
               key: "type",
-              label: "Tür",
-              options: Object.entries(EVENT_TYPE_LABEL).map(([value, label]) => ({ value, label })),
+              label: c.filterType,
+              options: eventTypeOptions(locale),
             },
             {
               key: "status",
-              label: "Durum",
+              label: c.filterStatus,
               options: [
-                { value: "LIVE", label: "Canlı" },
-                { value: "PUBLISHED", label: "Yaklaşan" },
-                { value: "FINISHED", label: "Tamamlanan" },
+                { value: "LIVE", label: c.statusLive },
+                { value: "PUBLISHED", label: c.statusUpcoming },
+                { value: "FINISHED", label: c.statusFinished },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="Etkinlik veya şehir ara…"
+          searchPlaceholder={c.searchPlaceholder}
         />
 
         <Suspense key={JSON.stringify(sp)} fallback={<GridSkeleton />}>
@@ -70,6 +78,7 @@ export default async function EventsPage({ searchParams }: { searchParams: SP })
 }
 
 async function EventResults({ sp }: { sp: Record<string, string | undefined> }) {
+  const c = eventsCopy[await getLocale()].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const q = sp.q?.trim();
   const now = new Date();
@@ -118,15 +127,15 @@ async function EventResults({ sp }: { sp: Record<string, string | undefined> }) 
     return (
       <EmptyState
         icon={<CalendarDays className="size-10" />}
-        title="Etkinlik bulunamadı"
-        description="Bu filtrelerle etkinlik yok. Yakında yenileri eklenecek."
+        title={c.emptyTitle}
+        description={c.emptyBody}
       />
     );
   }
 
   return (
     <>
-      <p className="text-sm text-muted">{total} etkinlik</p>
+      <p className="text-sm text-muted">{c.resultCount.replace("{count}", String(total))}</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {events.map((e, i) => (
           <EventCard key={e.id} e={e} priority={i < 3} />

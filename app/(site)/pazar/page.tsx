@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { ShoppingBag, MapPin } from "lucide-react";
 import type { Prisma } from "@prisma/client";
@@ -9,24 +9,32 @@ import { Badge, Card, CardBody, Section, EmptyState, Pagination, ButtonLink } fr
 import { FilterBar } from "@/components/filter-bar";
 import { cld } from "@/lib/image";
 import { formatMoney, timeAgo } from "@/lib/utils";
-import { DISCIPLINES, DISCIPLINE_LABEL, PAGE_SIZE, MARKETPLACE_FEE_RATE } from "@/lib/constants";
+import { PAGE_SIZE, MARKETPLACE_FEE_RATE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { disciplineOptions, labelsFor } from "@/lib/i18n/labels";
+import {
+  marketplaceCopy, PRODUCT_CATEGORY_KEYS, type ProductCategoryKey,
+} from "@/lib/i18n/pages/marketplace";
 
-export const metadata: Metadata = {
-  title: "Ekipman Pazarı",
-  description: "Dövüş sporu ekipmanları: eldiven, kimono, koruyucu, torba. Al, sat, takas et.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = marketplaceCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/pazar"),
+  };
+}
 
 export const revalidate = 120;
-
-const CATEGORIES = [
-  "Eldiven", "Kimono / Gi", "Koruyucu", "Şort / Rashguard",
-  "Kum torbası", "Ayakkabı", "Bandaj", "Diğer",
-];
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function MarketplacePage({ searchParams }: { searchParams: SP }) {
-  const sp = await searchParams;
+  const [sp, locale] = await Promise.all([searchParams, getLocale()]);
+  const copy = marketplaceCopy[locale];
+  const c = copy.list;
+  const L = labelsFor(locale);
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
   const where: Prisma.ProductWhereInput = { isActive: true, stock: { gt: 0 } };
@@ -67,11 +75,11 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Ekipman Pazarı"
-        subtitle={`Dövüş sporu ekipmanları — platform komisyonu %${MARKETPLACE_FEE_RATE * 100}`}
+        title={c.title}
+        subtitle={c.subtitle.replace("{rate}", String(MARKETPLACE_FEE_RATE * 100))}
         action={
           <ButtonLink href="/panel/pazar/yeni" size="sm">
-            İlan Ver
+            {c.createListing}
           </ButtonLink>
         }
       >
@@ -79,36 +87,40 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
           basePath="/pazar"
           current={sp}
           filters={[
-            { key: "category", label: "Kategori", options: CATEGORIES.map((c) => ({ value: c, label: c })) },
-            { key: "discipline", label: "Disiplin", options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })) },
+            {
+              key: "category",
+              label: c.filterCategory,
+              options: PRODUCT_CATEGORY_KEYS.map((k) => ({ value: k, label: copy.categories[k] })),
+            },
+            { key: "discipline", label: c.filterDiscipline, options: disciplineOptions(locale) },
             {
               key: "condition",
-              label: "Durum",
+              label: c.filterCondition,
               options: [
-                { value: "NEW", label: "Sıfır" },
-                { value: "LIKE_NEW", label: "Sıfır gibi" },
-                { value: "USED", label: "Kullanılmış" },
+                { value: "NEW", label: copy.conditions.NEW },
+                { value: "LIKE_NEW", label: copy.conditions.LIKE_NEW },
+                { value: "USED", label: copy.conditions.USED },
               ],
             },
             {
               key: "sort",
-              label: "Sıralama",
+              label: c.filterSort,
               options: [
-                { value: "new", label: "En yeni" },
-                { value: "price_asc", label: "Ucuzdan pahalıya" },
-                { value: "price_desc", label: "Pahalıdan ucuza" },
+                { value: "new", label: c.sortNew },
+                { value: "price_asc", label: c.sortPriceAsc },
+                { value: "price_desc", label: c.sortPriceDesc },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="Ürün ara…"
+          searchPlaceholder={c.searchPlaceholder}
         />
 
         {products.length === 0 ? (
           <EmptyState
             icon={<ShoppingBag className="size-10" />}
-            title="Ürün bulunamadı"
-            description="İlk ilanı sen ver — kullanmadığın ekipmanı topluluğa sun."
+            title={c.emptyTitle}
+            description={c.emptyBody}
           />
         ) : (
           <>
@@ -134,16 +146,20 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
                       )}
                       <span className="absolute left-2 top-2">
                         <Badge tone={p.condition === "NEW" ? "green" : "neutral"}>
-                          {p.condition === "NEW" ? "Sıfır" : p.condition === "LIKE_NEW" ? "Sıfır gibi" : "Kullanılmış"}
+                          {p.condition === "NEW"
+                            ? copy.conditions.NEW
+                            : p.condition === "LIKE_NEW"
+                              ? copy.conditions.LIKE_NEW
+                              : copy.conditions.USED}
                         </Badge>
                       </span>
                     </div>
                     <CardBody className="flex flex-col gap-1.5">
                       <h3 className="truncate font-bold">{p.title}</h3>
-                      <p className="text-lg font-black">{formatMoney(p.price, p.currency)}</p>
+                      <p className="text-lg font-black">{formatMoney(p.price, p.currency, LOCALE_TAG[locale])}</p>
                       <p className="truncate text-xs text-muted">
-                        {p.category}
-                        {p.discipline && ` · ${DISCIPLINE_LABEL[p.discipline]}`}
+                        {copy.categories[p.category as ProductCategoryKey] ?? p.category}
+                        {p.discipline && ` · ${L.discipline[p.discipline]}`}
                       </p>
                       <p className="flex items-center gap-1 truncate text-xs text-muted">
                         {p.city && (
@@ -152,7 +168,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
                             {p.city} ·{" "}
                           </>
                         )}
-                        {timeAgo(p.createdAt)}
+                        {timeAgo(p.createdAt, locale)}
                       </p>
                     </CardBody>
                     </Link>

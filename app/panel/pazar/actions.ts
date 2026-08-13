@@ -9,6 +9,7 @@ import { notify, audit } from "@/lib/notify";
 import { uniqueSlug, truncate } from "@/lib/utils";
 import { MARKETPLACE_FEE_RATE } from "@/lib/constants";
 import { productSchema } from "@/lib/validators";
+import { moderate, attachResult } from "@/lib/moderation";
 import type { ActionState } from "@/app/panel/actions";
 
 /**
@@ -62,7 +63,17 @@ export async function createProduct(_prev: ActionState, fd: FormData): Promise<A
   const open = await prisma.product.count({ where: { sellerId: user.id, isActive: true } });
   if (open >= 50) return { error: "Aynı anda en fazla 50 aktif ilanın olabilir." };
 
-  await prisma.product.create({
+  // §11.3 — İlan metni ve görseli ön filtreden geçer
+  const decision = await moderate({
+    targetType: "PRODUCT",
+    userId: user.id,
+    kind: "IMAGE",
+    text: `${d.title} ${d.description}`,
+    imageUrl: (d.images as { url?: string }[])[0]?.url ?? null,
+  });
+  if (decision.state === "REMOVED") return { error: decision.message ?? "İlan yayınlanamadı" };
+
+  const product = await prisma.product.create({
     data: {
       slug: uniqueSlug(d.title),
       sellerId: user.id,
@@ -76,10 +87,15 @@ export async function createProduct(_prev: ActionState, fd: FormData): Promise<A
       city: d.city || null,
       shipping: d.shipping,
       images: d.images as never,
+      // İncelemeye düşen ilan listede görünmez
+      isActive: decision.state === "APPROVED",
     },
+    select: { id: true },
   });
 
-  audit({ userId: user.id, action: "PRODUCT_CREATE", targetType: "PRODUCT" });
+  await attachResult({ targetType: "PRODUCT", targetId: product.id, decision });
+
+  audit({ userId: user.id, action: "PRODUCT_CREATE", targetType: "PRODUCT", targetId: product.id });
   revalidatePath("/panel/pazar");
   revalidatePath("/pazar");
   redirect("/panel/pazar");

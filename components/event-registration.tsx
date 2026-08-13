@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { ClipboardCheck, Loader2 } from "lucide-react";
 import { registerForEvent, withdrawRegistration } from "@/app/(site)/etkinlikler/actions";
 import { FormShell } from "@/components/form-shell";

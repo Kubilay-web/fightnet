@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import Link from "next/link";
-import { Swords, MapPin, Weight, ShieldAlert, Clock } from "lucide-react";
+import { Link } from "@/components/i18n/link";
+import { Swords, MapPin, Weight, Clock } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -10,41 +10,48 @@ import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { Badge, Card, CardBody, EmptyState, Pagination, Skeleton, Section, ButtonLink, Alert } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
 import { SparringRequestButton } from "@/components/sparring-request";
-import { DISCIPLINES, SKILL_LEVELS, SPARRING_INTENSITY, AVAILABILITY_SLOTS, PAGE_SIZE } from "@/lib/constants";
-import { DISCIPLINE_LABEL, SKILL_LABEL } from "@/lib/constants";
+import { PAGE_SIZE } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import {
+  disciplineOptions, skillOptions, sparringIntensityOptions, labelsFor,
+  type AvailabilitySlotKey, type SparringIntensityKey,
+} from "@/lib/i18n/labels";
+import { sparringCopy } from "@/lib/i18n/pages/sparring";
 
-export const metadata: Metadata = {
-  title: "Sparring Partneri Ara",
-  description:
-    "Bölgende disiplin, seviye ve kiloya göre sparring partneri bul. Her seans sonrası güvenlik değerlendirmesi ile güvenli eşleşme.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = sparringCopy[await getLocale()];
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/sparring"),
+  };
+}
 
 export const dynamic = "force-dynamic";
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function SparringPage({ searchParams }: { searchParams: SP }) {
-  const [sp, session] = await Promise.all([searchParams, getSession()]);
+  const [sp, session, locale] = await Promise.all([searchParams, getSession(), getLocale()]);
+  const c = sparringCopy[locale];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Sparring Partneri Ara"
-        subtitle="Seviyene ve kilona uygun partner bul — güvenli, doğrulanmış, bölgesel"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           <ButtonLink href="/panel/sparring/yeni" size="sm">
-            <Swords className="size-4" /> İlan Ver
+            <Swords className="size-4" /> {c.createListing}
           </ButtonLink>
         }
       >
         {/* §11.2 — Sparring güvenliği kapısı */}
-        <Alert tone="amber" title="Sparring güvenliği">
-          Sparring ilanı veren ve talep eden herkes sorumluluk feragatnamesini onaylar.
-          Her seans sonrası güvenlik değerlendirmesi yapılır; 3 güvensizlik raporu otomatik
-          askıya alma ile sonuçlanır.{" "}
+        <Alert tone="amber" title={c.safetyTitle}>
+          {c.safetyBody}{" "}
           <Link href="/sparring-sozlesmesi" className="font-bold underline">
-            Sparring Sözleşmesi
+            {c.safetyLink}
           </Link>
         </Alert>
 
@@ -52,22 +59,22 @@ export default async function SparringPage({ searchParams }: { searchParams: SP 
           basePath="/sparring"
           current={sp}
           filters={[
-            { key: "discipline", label: "Disiplin", options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })) },
-            { key: "level", label: "Seviye", options: SKILL_LEVELS.map((l) => ({ value: l.value, label: l.label })) },
-            { key: "intensity", label: "Yoğunluk", options: SPARRING_INTENSITY.map((i) => ({ value: i.value, label: i.label })) },
+            { key: "discipline", label: c.filterDiscipline, options: disciplineOptions(locale) },
+            { key: "level", label: c.filterLevel, options: skillOptions(locale) },
+            { key: "intensity", label: c.filterIntensity, options: sparringIntensityOptions(locale) },
             {
               key: "weight",
-              label: "Kilo",
+              label: c.filterWeight,
               options: [
-                { value: "0-65", label: "-65 kg" },
-                { value: "65-80", label: "65-80 kg" },
-                { value: "80-95", label: "80-95 kg" },
-                { value: "95-200", label: "95+ kg" },
+                { value: "0-65", label: c.weightUnder65 },
+                { value: "65-80", label: c.weight65to80 },
+                { value: "80-95", label: c.weight80to95 },
+                { value: "95-200", label: c.weightOver95 },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="Şehir veya posta kodu…"
+          searchPlaceholder={c.searchPlaceholder}
         />
 
         <Suspense key={JSON.stringify(sp)} fallback={<ListSkeleton />}>
@@ -89,6 +96,9 @@ async function SparringResults({
   authed: boolean;
   verified?: string;
 }) {
+  const locale = await getLocale();
+  const c = sparringCopy[locale];
+  const L = labelsFor(locale);
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const q = sp.q?.trim();
 
@@ -141,11 +151,11 @@ async function SparringResults({
     return (
       <EmptyState
         icon={<Swords className="size-10" />}
-        title="İlan bulunamadı"
-        description="Bu filtrelerle açık sparring ilanı yok. İlk ilanı sen ver."
+        title={c.emptyTitle}
+        description={c.emptyBody}
         action={
           <ButtonLink href="/panel/sparring/yeni" size="sm" className="mt-2">
-            İlan Ver
+            {c.createListing}
           </ButtonLink>
         }
       />
@@ -154,12 +164,12 @@ async function SparringResults({
 
   return (
     <>
-      <p className="text-sm text-muted">{total} açık ilan</p>
+      <p className="text-sm text-muted">{c.resultCount.replace("{count}", String(total))}</p>
       <div className="grid gap-4 lg:grid-cols-2">
         {listings.map((l) => {
           const existing = Array.isArray(l.requests) ? l.requests[0] : undefined;
           const isOwn = l.user.id === viewerId;
-          const intensity = SPARRING_INTENSITY.find((i) => i.value === l.intensity);
+          const intensityKey = l.intensity as SparringIntensityKey | null;
           return (
             <Card key={l.id} hover>
               <CardBody className="flex flex-col gap-3">
@@ -175,18 +185,18 @@ async function SparringResults({
                     <p className="flex items-center gap-1 text-xs text-muted">
                       <MapPin className="size-3.5" />
                       {l.city}
-                      {l.postalCode && ` ${l.postalCode}`} · {l.radiusKm} km çevre
+                      {l.postalCode && ` ${l.postalCode}`} · {c.radius.replace("{km}", String(l.radiusKm))}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] text-muted">{timeAgo(l.createdAt)}</span>
+                  <span className="shrink-0 text-[11px] text-muted">{timeAgo(l.createdAt, locale)}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge tone="red">{DISCIPLINE_LABEL[l.discipline]}</Badge>
-                  <Badge>{SKILL_LABEL[l.level]}</Badge>
-                  {intensity && (
-                    <Badge tone={intensity.value === "HARD" ? "red" : intensity.value === "LIGHT" ? "green" : "amber"}>
-                      {intensity.label}
+                  <Badge tone="red">{L.discipline[l.discipline]}</Badge>
+                  <Badge>{L.skill[l.level]}</Badge>
+                  {intensityKey && (
+                    <Badge tone={intensityKey === "HARD" ? "red" : intensityKey === "LIGHT" ? "green" : "amber"}>
+                      {L.sparringIntensity[intensityKey]}
                     </Badge>
                   )}
                   {l.weightKg && (
@@ -200,7 +210,7 @@ async function SparringResults({
                   <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                     <Clock className="size-3.5 shrink-0" />
                     {l.availability
-                      .map((a) => AVAILABILITY_SLOTS.find((s) => s.value === a)?.label ?? a)
+                      .map((a) => L.availabilitySlot[a as AvailabilitySlotKey] ?? a)
                       .join(" · ")}
                   </p>
                 )}
@@ -209,10 +219,10 @@ async function SparringResults({
 
                 <div className="flex items-center gap-2 border-t border-[var(--border)] pt-3">
                   {isOwn ? (
-                    <span className="text-xs text-muted">Kendi ilanın</span>
+                    <span className="text-xs text-muted">{c.ownListing}</span>
                   ) : existing ? (
                     <Badge tone={existing.status === "ACCEPTED" ? "green" : "neutral"}>
-                      {existing.status === "PENDING" ? "Talep gönderildi" : existing.status === "ACCEPTED" ? "Kabul edildi" : "Reddedildi"}
+                      {existing.status === "PENDING" ? c.requestSent : existing.status === "ACCEPTED" ? c.requestAccepted : c.requestRejected}
                     </Badge>
                   ) : (
                     <SparringRequestButton

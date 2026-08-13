@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { MessageSquare, Pin, Lock, Eye } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -9,24 +9,36 @@ import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { Badge, Card, ButtonLink, Section, EmptyState, Pagination } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
 import { timeAgo, compact } from "@/lib/utils";
-import { DISCIPLINE_LABEL, PAGE_SIZE } from "@/lib/constants";
+import { PAGE_SIZE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { forumCopy } from "@/lib/i18n/pages/forum";
 
-export const metadata: Metadata = {
-  title: "Forum",
-  description: "Dövüş sporu topluluğu tartışma forumu — teknik, ekipman, müsabaka ve antrenman.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = forumCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/forum"),
+  };
+}
 
 export const revalidate = 60;
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function ForumPage({ searchParams }: { searchParams: SP }) {
-  const [sp, session, categories] = await Promise.all([searchParams, getSession(), getForumCategories()]);
+  const [sp, session, categories, locale] = await Promise.all([
+    searchParams,
+    getSession(),
+    getForumCategories(),
+    getLocale(),
+  ]);
+  const c = forumCopy[locale].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
   const where: Prisma.ForumThreadWhereInput = { moderation: "APPROVED" };
   if (sp.kategori) {
-    const cat = categories.find((c) => c.slug === sp.kategori);
+    const cat = categories.find((k) => k.slug === sp.kategori);
     if (cat) where.categoryId = cat.id;
   }
   if (sp.q) {
@@ -59,16 +71,16 @@ export default async function ForumPage({ searchParams }: { searchParams: SP }) 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Forum"
-        subtitle="Topluluk tartışmaları — teknik, ekipman, müsabaka ve antrenman"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           session ? (
             <ButtonLink href="/forum/yeni" size="sm">
-              Konu Aç
+              {c.newThread}
             </ButtonLink>
           ) : (
             <ButtonLink href="/kayit" size="sm">
-              Katıl
+              {c.join}
             </ButtonLink>
           )
         }
@@ -79,32 +91,32 @@ export default async function ForumPage({ searchParams }: { searchParams: SP }) 
               href="/forum"
               className={`snap-item shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${!sp.kategori ? "border-blood-500 bg-blood-500/10 text-blood-500" : "border-[var(--border)] hover:border-blood-500"}`}
             >
-              Tümü
+              {c.allCategories}
             </Link>
-            {categories.map((c) => (
+            {categories.map((k) => (
               <Link
-                key={c.id}
-                href={`/forum?kategori=${c.slug}`}
-                className={`snap-item shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${sp.kategori === c.slug ? "border-blood-500 bg-blood-500/10 text-blood-500" : "border-[var(--border)] hover:border-blood-500"}`}
+                key={k.id}
+                href={`/forum?kategori=${k.slug}`}
+                className={`snap-item shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${sp.kategori === k.slug ? "border-blood-500 bg-blood-500/10 text-blood-500" : "border-[var(--border)] hover:border-blood-500"}`}
               >
-                {c.name}
-                <span className="ml-1.5 text-xs text-muted">{c.threadCount}</span>
+                {k.name}
+                <span className="ml-1.5 text-xs text-muted">{k.threadCount}</span>
               </Link>
             ))}
           </div>
         )}
 
-        <FilterBar basePath="/forum" current={sp} filters={[]} searchKey="q" searchPlaceholder="Konularda ara…" />
+        <FilterBar basePath="/forum" current={sp} filters={[]} searchKey="q" searchPlaceholder={c.searchPlaceholder} />
 
         {threads.length === 0 ? (
           <EmptyState
             icon={<MessageSquare className="size-10" />}
-            title="Konu bulunamadı"
-            description="İlk konuyu sen aç ve tartışmayı başlat."
+            title={c.emptyTitle}
+            description={c.emptyBody}
             action={
               session ? (
                 <ButtonLink href="/forum/yeni" size="sm" className="mt-2">
-                  Konu Aç
+                  {c.newThread}
                 </ButtonLink>
               ) : null
             }
@@ -132,7 +144,7 @@ export default async function ForumPage({ searchParams }: { searchParams: SP }) 
                           <span>{t.user.name}</span>
                           <VerifiedMark level={t.user.verification} />
                           <span>·</span>
-                          <span>{timeAgo(t.lastPostAt)}</span>
+                          <span>{timeAgo(t.lastPostAt, locale)}</span>
                         </p>
                         {t.tags.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -144,7 +156,7 @@ export default async function ForumPage({ searchParams }: { searchParams: SP }) 
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted">
                         <span className="font-black tabular-nums text-[var(--fg)]">{t.replyCount}</span>
-                        <span>yanıt</span>
+                        <span>{c.replies}</span>
                         <span className="flex items-center gap-1">
                           <Eye className="size-3" /> {compact(t.viewCount)}
                         </span>

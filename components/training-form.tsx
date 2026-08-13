@@ -7,8 +7,8 @@ import { FormShell } from "@/components/form-shell";
 import { Input, Textarea, Select, Field, Alert } from "@/components/ui";
 import { DISCIPLINES, VISIBILITY_LABEL } from "@/lib/constants";
 import { enqueueTraining, flushTrainingQueue, formDataToTraining, queueSize } from "@/lib/offline";
-
-const TRAINING_TYPES = ["Teknik", "Sparring", "Kondisyon", "Kuvvet", "Drilling", "Open Mat", "Özel Ders"];
+import { useLocale } from "@/components/i18n/provider";
+import { panelTrainingCopy, TRAINING_TYPE_VALUES } from "@/lib/i18n/pages/panel-training";
 
 /**
  * §5.2 — Çevrimdışı destek.
@@ -16,6 +16,7 @@ const TRAINING_TYPES = ["Teknik", "Sparring", "Kondisyon", "Kuvvet", "Drilling",
  * `/api/training/sync` ile toplu gönderilir. clientId tekrarlı yazımı engeller.
  */
 export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] }) {
+  const t = panelTrainingCopy[useLocale()].form;
   const [techniques, setTechniques] = useState<string[]>([]);
   const [tech, setTech] = useState("");
   const [offline, setOffline] = useState(false);
@@ -62,9 +63,9 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
   }, []);
 
   function addTechnique() {
-    const t = tech.trim();
-    if (!t || techniques.includes(t) || techniques.length >= 20) return;
-    setTechniques((prev) => [...prev, t]);
+    const value = tech.trim();
+    if (!value || techniques.includes(value) || techniques.length >= 20) return;
+    setTechniques((prev) => [...prev, value]);
     setTech("");
   }
 
@@ -73,40 +74,41 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
   return (
     <>
       {offline && (
-        <Alert tone="amber" title="Çevrimdışısın">
+        <Alert tone="amber" title={t.offlineTitle}>
           <span className="flex items-center gap-2">
             <WifiOff className="size-4" />
-            Kaydın cihazında saklanacak ve bağlantı geri geldiğinde otomatik gönderilecek.
+            {t.offlineBody}
           </span>
         </Alert>
       )}
       {justQueued && (
-        <Alert tone="green" title="Antrenman cihazına kaydedildi">
-          Bağlantı geri geldiğinde otomatik olarak hesabına eklenecek.
+        <Alert tone="green" title={t.queuedTitle}>
+          {t.queuedBody}
         </Alert>
       )}
       {pendingCount > 0 && (
         <Alert tone="blue">
           <span className="flex items-center gap-2">
             <CloudUpload className="size-4" />
-            {pendingCount} kayıt senkronize edilmeyi bekliyor.
+            {pendingCount} {t.pendingSuffix}
           </span>
         </Alert>
       )}
 
-      <FormShell action={createTraining} submitLabel="Antrenmanı Kaydet" intercept={intercept}>
+      <FormShell action={createTraining} submitLabel={t.submit} intercept={intercept}>
         {(state) => (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Tarih" error={state.fields?.date} required>
+              <Field label={t.date} error={state.fields?.date} required>
                 <Input type="date" name="date" defaultValue={today} max={today} required />
               </Field>
 
-              <Field label="Disiplin" error={state.fields?.discipline} required>
+              <Field label={t.discipline} error={state.fields?.discipline} required>
                 <Select name="discipline" required defaultValue="">
                   <option value="" disabled>
-                    Seç
+                    {t.select}
                   </option>
+                  {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                   {DISCIPLINES.map((d) => (
                     <option key={d.value} value={d.value}>
                       {d.emoji} {d.label}
@@ -117,11 +119,11 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Süre (dk)" error={state.fields?.durationMin} required>
+              <Field label={t.duration} error={state.fields?.durationMin} required>
                 <Input type="number" name="durationMin" defaultValue={60} min={5} max={600} required />
               </Field>
 
-              <Field label="Yoğunluk" hint="1 hafif — 5 maksimum">
+              <Field label={t.intensity} hint={t.intensityHint}>
                 <Select name="intensity" defaultValue="3">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <option key={i} value={i}>
@@ -131,12 +133,12 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
                 </Select>
               </Field>
 
-              <Field label="Tür">
+              <Field label={t.type}>
                 <Select name="type" defaultValue="">
-                  <option value="">Seç</option>
-                  {TRAINING_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  <option value="">{t.select}</option>
+                  {TRAINING_TYPE_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {t.typeOptions[value]}
                     </option>
                   ))}
                 </Select>
@@ -144,28 +146,28 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Raunt sayısı">
+              <Field label={t.rounds}>
                 <Input type="number" name="rounds" min={0} max={100} />
               </Field>
-              <Field label="Kilo (kg)" hint="Takip için opsiyonel">
+              <Field label={t.weight} hint={t.weightHint}>
                 <Input type="number" step="0.1" name="weightKg" min={30} max={200} />
               </Field>
-              <Field label="Ruh hali">
+              <Field label={t.mood}>
                 <Select name="mood" defaultValue="">
-                  <option value="">Seç</option>
-                  <option value="1">😩 Çok kötü</option>
-                  <option value="2">😕 Kötü</option>
-                  <option value="3">😐 Normal</option>
-                  <option value="4">🙂 İyi</option>
-                  <option value="5">🔥 Harika</option>
+                  <option value="">{t.select}</option>
+                  <option value="1">😩 {t.moodOptions.veryBad}</option>
+                  <option value="2">😕 {t.moodOptions.bad}</option>
+                  <option value="3">😐 {t.moodOptions.ok}</option>
+                  <option value="4">🙂 {t.moodOptions.good}</option>
+                  <option value="5">🔥 {t.moodOptions.great}</option>
                 </Select>
               </Field>
             </div>
 
             {gyms.length > 0 && (
-              <Field label="Salon">
+              <Field label={t.gym}>
                 <Select name="gymId" defaultValue="">
-                  <option value="">Seç</option>
+                  <option value="">{t.select}</option>
                   {gyms.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -175,7 +177,7 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
               </Field>
             )}
 
-            <Field label="Çalışılan teknikler" hint="Enter ile ekle">
+            <Field label={t.techniques} hint={t.techniquesHint}>
               <div className="flex gap-2">
                 <Input
                   value={tech}
@@ -186,13 +188,13 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
                       addTechnique();
                     }
                   }}
-                  placeholder="Armbar, Jab-Cross, Double Leg…"
+                  placeholder={t.techniquesPlaceholder}
                   maxLength={60}
                 />
                 <button
                   type="button"
                   onClick={addTechnique}
-                  aria-label="Teknik ekle"
+                  aria-label={t.addTechniqueAria}
                   className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] transition-colors hover:border-blood-500 hover:text-blood-500"
                 >
                   <Plus className="size-4" />
@@ -200,17 +202,17 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
               </div>
               {techniques.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {techniques.map((t) => (
+                  {techniques.map((item) => (
                     <span
-                      key={t}
+                      key={item}
                       className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold dark:bg-ink-800"
                     >
-                      {t}
-                      <input type="hidden" name="techniques[]" value={t} />
+                      {item}
+                      <input type="hidden" name="techniques[]" value={item} />
                       <button
                         type="button"
-                        onClick={() => setTechniques((prev) => prev.filter((x) => x !== t))}
-                        aria-label={`${t} kaldır`}
+                        onClick={() => setTechniques((prev) => prev.filter((x) => x !== item))}
+                        aria-label={t.removeTechniqueAria(item)}
                         className="text-muted hover:text-blood-500"
                       >
                         <X className="size-3" />
@@ -221,11 +223,12 @@ export function TrainingForm({ gyms }: { gyms: { id: string; name: string }[] })
               )}
             </Field>
 
-            <Field label="Notlar">
-              <Textarea name="notes" rows={3} maxLength={1000} placeholder="Nasıl geçti? Neyi geliştirmelisin?" />
+            <Field label={t.notes}>
+              <Textarea name="notes" rows={3} maxLength={1000} placeholder={t.notesPlaceholder} />
             </Field>
 
-            <Field label="Görünürlük" hint="Antrenman kayıtların varsayılan olarak özeldir">
+            <Field label={t.visibility} hint={t.visibilityHint}>
+              {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
               <Select name="visibility" defaultValue="PRIVATE">
                 {Object.entries(VISIBILITY_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>

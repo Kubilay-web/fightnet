@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { MessagesSquare } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -7,12 +7,20 @@ import { requireUser } from "@/lib/auth";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { Badge, Card, Section, EmptyState, Alert } from "@/components/ui";
 import { timeAgo, truncate } from "@/lib/utils";
+import { getLocale } from "@/lib/i18n/server";
+import { panelMessagesCopy } from "@/lib/i18n/pages/panel-messages";
 
-export const metadata: Metadata = { title: "Mesajlar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelMessagesCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function MessagesPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = panelMessagesCopy[locale];
 
   const conversations = await safe(
     () =>
@@ -46,21 +54,21 @@ export default async function MessagesPage() {
   return (
     <div className="flex flex-col gap-6">
       <Section
-        title="Mesajlar"
-        subtitle="Sporcular, antrenörler ve salonlarla doğrudan iletişim"
+        title={copy.title}
+        subtitle={copy.subtitle}
       />
 
       {user.isMinor && !user.guardianConsent && (
-        <Alert tone="amber" title="Mesajlaşma kısıtlı">
-          Velinin onayı gelene kadar yetişkinler sana mesaj gönderemez ve sen de mesaj başlatamazsın.
+        <Alert tone="amber" title={copy.restricted.title}>
+          {copy.restricted.body}
         </Alert>
       )}
 
       {conversations.length === 0 ? (
         <EmptyState
           icon={<MessagesSquare className="size-10" />}
-          title="Henüz mesajın yok"
-          description="Bir sporcunun profilinden ya da sparring eşleşmesinden sohbet başlatabilirsin."
+          title={copy.empty.title}
+          description={copy.empty.description}
         />
       ) : (
         <Card>
@@ -73,18 +81,18 @@ export default async function MessagesPage() {
                     href={`/panel/mesajlar/${c.id}`}
                     className="flex items-center gap-3 p-3 transition-colors hover:bg-ink-100 dark:hover:bg-ink-800/60"
                   >
-                    <Avatar src={other?.avatarUrl} name={other?.name ?? "Silinmiş kullanıcı"} size="md" />
+                    <Avatar src={other?.avatarUrl} name={other?.name ?? copy.deletedUser} size="md" />
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate text-sm font-bold">
-                        {other?.name ?? "Silinmiş kullanıcı"}
+                        {other?.name ?? copy.deletedUser}
                         {other && <VerifiedMark level={other.verification} />}
                       </p>
                       <p className="truncate text-xs text-muted">
-                        {c.lastMessage ? truncate(c.lastMessage, 70) : "Sohbet başladı"}
+                        {c.lastMessage ? truncate(c.lastMessage, 70) : copy.conversationStarted}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-[11px] text-muted">{timeAgo(c.lastMessageAt)}</span>
+                      <span className="text-[11px] text-muted">{timeAgo(c.lastMessageAt, locale)}</span>
                       {unreadCount > 0 && <Badge tone="red">{unreadCount}</Badge>}
                     </div>
                   </Link>

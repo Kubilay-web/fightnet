@@ -87,20 +87,21 @@ export async function snapshotKpi(): Promise<KpiValues & { date: Date }> {
 
 export type GateLight = "GREEN" | "YELLOW" | "RED" | "PENDING";
 
+/** §7.4 tablosundaki kapı satırları — metin `lib/i18n/pages/admin-kpi.ts` içinde. */
+export type GateKey = "waitlist" | "loi" | "firstPaying" | "beta3" | "launch";
+
+/**
+ * Kapı sonucu yalnızca ÖLÇÜM taşır; başlık/açıklama/aksiyon metni dile göre
+ * sunum katmanında üretilir. Ölçülen değerler `metrics` içinde ham sayı olarak
+ * durur, böylece eşikler tek kaynakta (burada) kalır.
+ */
 export interface GateResult {
   month: number;
-  title: string;
+  key: GateKey;
   light: GateLight;
-  detail: string;
-  /** §7.5 — her renk için ne yapılır */
-  action: string;
+  /** Kapının değerlendirdiği ham sayılar — çeviri metnine gömülür */
+  metrics: { gyms?: number; mavu?: number; count?: number };
 }
-
-const ACTIONS: Record<Exclude<GateLight, "PENDING">, string> = {
-  GREEN: "Planlanan gibi devam et, hızlandır.",
-  YELLOW: "Neden plan altında? 2-3 ayarlama yap, tekrar ölç.",
-  RED: "Mini-Pivot değerlendirmesi. 8 hafta sonra hâlâ kırmızıysa Full-Pivot veya vazgeçme.",
-};
 
 /** Programın kaçıncı ayındayız (1 tabanlı) */
 export function programMonth(startedAt: Date): number {
@@ -118,82 +119,77 @@ export function evaluateGates(
   values: Pick<KpiValues, "mavu" | "payingGyms" | "waitlistCount" | "loiCount">,
   currentMonth: number,
 ): GateResult[] {
-  const gates: { month: number; title: string; evaluate: () => { light: Exclude<GateLight, "PENDING">; detail: string } }[] = [
+  const gates: {
+    month: number;
+    key: GateKey;
+    evaluate: () => { light: Exclude<GateLight, "PENDING">; metrics: GateResult["metrics"] };
+  }[] = [
     {
       month: 4,
-      title: "Bekleme listesi ilgisi",
+      key: "waitlist",
       evaluate: () => {
         const n = values.waitlistCount;
         const light = n >= 20 ? "GREEN" : n >= 10 ? "YELLOW" : "RED";
-        return { light, detail: `${n} bekleme listesi kaydı (hedef ≥20)` };
+        return { light, metrics: { count: n } };
       },
     },
     {
       month: 5,
-      title: "Niyet mektupları (LOI)",
+      key: "loi",
       evaluate: () => {
         const n = values.loiCount;
         const light = n >= 5 ? "GREEN" : n >= 2 ? "YELLOW" : "RED";
-        return { light, detail: `${n} LOI (hedef ≥5)` };
+        return { light, metrics: { count: n } };
       },
     },
     {
       month: 6,
-      title: "İlk ödeyen Kurucu Üyeler",
+      key: "firstPaying",
       evaluate: () => {
         const g = values.payingGyms;
         const m = values.mavu;
         const light = g >= 5 && m >= 50 ? "GREEN" : g >= 3 ? "YELLOW" : "RED";
-        return { light, detail: `${g} ödeyen salon · ${m} MAVU (hedef ≥5 ve ≥50)` };
+        return { light, metrics: { gyms: g, mavu: m } };
       },
     },
     {
       month: 9,
-      title: "Beta 3 açık",
+      key: "beta3",
       evaluate: () => {
         const g = values.payingGyms;
         const m = values.mavu;
         const light = g >= 10 && m >= 200 ? "GREEN" : g >= 5 ? "YELLOW" : "RED";
-        return { light, detail: `${g} ödeyen salon · ${m} MAVU (hedef ≥10 ve ≥200)` };
+        return { light, metrics: { gyms: g, mavu: m } };
       },
     },
     {
       month: 12,
-      title: "Tam lansman",
+      key: "launch",
       evaluate: () => {
         const g = values.payingGyms;
         const m = values.mavu;
         const light = g >= 20 && m >= 500 ? "GREEN" : g >= 10 ? "YELLOW" : "RED";
-        return { light, detail: `${g} salon · ${m} MAVU (hedef ≥20 ve ≥500)` };
+        return { light, metrics: { gyms: g, mavu: m } };
       },
     },
   ];
 
   return gates.map((g) => {
     if (currentMonth < g.month) {
-      return {
-        month: g.month,
-        title: g.title,
-        light: "PENDING" as const,
-        detail: `Ay ${g.month}'de ölçülecek`,
-        action: "Henüz sırası gelmedi.",
-      };
+      return { month: g.month, key: g.key, light: "PENDING" as const, metrics: {} };
     }
-    const { light, detail } = g.evaluate();
-    return { month: g.month, title: g.title, light, detail, action: ACTIONS[light] };
+    const { light, metrics } = g.evaluate();
+    return { month: g.month, key: g.key, light, metrics };
   });
 }
 
+/** §11.7 — moderatör kurulumu ölçekleme kademeleri; metin sunum katmanında. */
+export type ModerationTier = "PART_TIME" | "WERKSTUDENT_REQUIRED" | "WERKSTUDENT_SEARCH";
+
 /** §11.7 — moderatör kurulumu ölçekleme tetikleyicileri */
-export function moderationTrigger(mavu: number, monthlyReports: number): { level: string; note: string } | null {
-  if (mavu >= 5000 || monthlyReports >= 300) {
-    return { level: "Yarı zamanlı moderatör", note: "1.500–2.500 €/ay — 5.000 MAVU veya 300+ rapor/ay eşiği aşıldı." };
-  }
-  if (mavu >= 2500 || monthlyReports >= 150) {
-    return { level: "Werkstudent zorunlu", note: "2.500 MAVU veya 150+ rapor/ay eşiği aşıldı." };
-  }
-  if (mavu >= 1000 || monthlyReports >= 50) {
-    return { level: "Werkstudent araması başlat", note: "500–1.000 €/ay — 1.000 MAVU veya 50+ rapor/ay eşiği aşıldı." };
-  }
+export function moderationTrigger(mavu: number, monthlyReports: number): ModerationTier | null {
+  if (mavu >= 5000 || monthlyReports >= 300) return "PART_TIME";
+  if (mavu >= 2500 || monthlyReports >= 150) return "WERKSTUDENT_REQUIRED";
+  if (mavu >= 1000 || monthlyReports >= 50) return "WERKSTUDENT_SEARCH";
   return null;
 }

@@ -8,16 +8,24 @@ import { FormShell } from "@/components/form-shell";
 import { useCloudinaryUpload, type UploadedAsset } from "@/components/uploader";
 import { Button, Input, Textarea, Select, Field, Checkbox, Alert } from "@/components/ui";
 import { cld } from "@/lib/image";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { DISCIPLINES, MARKETPLACE_FEE_RATE } from "@/lib/constants";
 import { formatMoney } from "@/lib/utils";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { useLocale } from "@/components/i18n/provider";
+import { panelMarketCopy, PRODUCT_CATEGORY_VALUES } from "@/lib/i18n/pages/panel-market";
 
-export const PRODUCT_CATEGORIES = [
-  "Eldiven", "Kimono / Gi", "Koruyucu", "Şort / Rashguard",
-  "Kum torbası", "Ayakkabı", "Bandaj", "Diğer",
-];
+/**
+ * Kategori değerleri kanonik (Türkçe) kalır — veritabanına yazılan metin dile
+ * göre değişmemeli. Görünen etiket `panelMarketCopy.categories` üzerinden gelir.
+ */
+export const PRODUCT_CATEGORIES = PRODUCT_CATEGORY_VALUES;
 
 /** §4.4 — İlan verme formu. Görseller doğrudan Cloudinary'ye yüklenir. */
 export function ProductForm() {
+  const locale = useLocale();
+  const copy = panelMarketCopy[locale];
+  const t = copy.form;
   const [images, setImages] = useState<UploadedAsset[]>([]);
   const [price, setPrice] = useState(0);
   const { upload, uploading, progress, error } = useCloudinaryUpload("product");
@@ -34,47 +42,47 @@ export function ProductForm() {
   const fee = Math.round(price * MARKETPLACE_FEE_RATE * 100) / 100;
 
   return (
-    <FormShell action={createProduct} submitLabel="İlanı Yayınla">
+    <FormShell action={createProduct} submitLabel={t.submit}>
       {(state) => (
         <>
-          <Field label="Başlık" error={state.fields?.title} required>
-            <Input name="title" required minLength={3} maxLength={120} placeholder="Fairtex BGV1 boks eldiveni 16 oz" />
+          <Field label={t.title} error={state.fields?.title} required>
+            <Input name="title" required minLength={3} maxLength={120} placeholder={t.titlePlaceholder} />
           </Field>
 
-          <Field label="Açıklama" error={state.fields?.description} required hint="Durum, kullanım süresi, kusurlar — dürüst ol">
+          <Field label={t.description} error={state.fields?.description} required hint={t.descriptionHint}>
             <Textarea name="description" required minLength={10} maxLength={3000} rows={5} />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Kategori" error={state.fields?.category} required>
+            <Field label={t.category} error={state.fields?.category} required>
               <Select name="category" required defaultValue="">
-                <option value="" disabled>Seç</option>
+                <option value="" disabled>{t.categoryEmpty}</option>
                 {PRODUCT_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{copy.categories[c]}</option>
                 ))}
               </Select>
             </Field>
 
-            <Field label="Disiplin" hint="Opsiyonel">
+            <Field label={t.discipline} hint={t.disciplineHint}>
               <Select name="discipline" defaultValue="">
-                <option value="">Fark etmez</option>
+                <option value="">{t.disciplineAny}</option>
                 {DISCIPLINES.map((d) => (
                   <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
               </Select>
             </Field>
 
-            <Field label="Durum" required>
+            <Field label={t.condition} required>
               <Select name="condition" defaultValue="NEW">
-                <option value="NEW">Sıfır</option>
-                <option value="LIKE_NEW">Sıfır gibi</option>
-                <option value="USED">Kullanılmış</option>
+                <option value="NEW">{t.conditionNew}</option>
+                <option value="LIKE_NEW">{t.conditionLikeNew}</option>
+                <option value="USED">{t.conditionUsed}</option>
               </Select>
             </Field>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Fiyat (€)" error={state.fields?.price} required>
+            <Field label={t.price} error={state.fields?.price} required>
               <Input
                 type="number"
                 name="price"
@@ -85,24 +93,25 @@ export function ProductForm() {
                 onChange={(e) => setPrice(Number(e.target.value) || 0)}
               />
             </Field>
-            <Field label="Adet" required>
+            <Field label={t.stock} required>
               <Input type="number" name="stock" min={1} max={9999} defaultValue={1} required />
             </Field>
-            <Field label="Şehir" hint="Elden teslim için">
-              <Input name="city" maxLength={60} placeholder="Frankfurt" />
+            <Field label={t.city} hint={t.cityHint}>
+              <Input name="city" maxLength={60} placeholder={t.cityPlaceholder} />
             </Field>
           </div>
 
           {price > 0 && (
             <Alert tone="neutral">
-              Satış gerçekleşirse platform komisyonu %{MARKETPLACE_FEE_RATE * 100} ={" "}
-              <strong>{formatMoney(fee)}</strong>. Sana kalan: <strong>{formatMoney(price - fee)}</strong>.
+              {t.feePrefix(MARKETPLACE_FEE_RATE * 100)}{" "}
+              <strong>{formatMoney(fee, "EUR", LOCALE_TAG[locale])}</strong>. {t.feeRemainder}{" "}
+              <strong>{formatMoney(price - fee, "EUR", LOCALE_TAG[locale])}</strong>.
             </Alert>
           )}
 
-          <Checkbox name="shipping" defaultChecked label="Kargo gönderimi yapıyorum" />
+          <Checkbox name="shipping" defaultChecked label={t.shipping} />
 
-          <Field label="Görseller" hint="En fazla 8 · ilk görsel kapak olur">
+          <Field label={t.images} hint={t.imagesHint}>
             <div className="flex flex-wrap gap-2">
               {images.map((img, i) => (
                 <span key={img.publicId} className="relative size-24 overflow-hidden rounded-xl bg-ink-200 dark:bg-ink-800">
@@ -112,7 +121,7 @@ export function ProductForm() {
                   <button
                     type="button"
                     onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
-                    aria-label="Görseli kaldır"
+                    aria-label={t.removeImageAria}
                     className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-lg bg-black/60 text-white hover:bg-blood-600"
                   >
                     <X className="size-3" />
@@ -130,7 +139,7 @@ export function ProductForm() {
                   ) : (
                     <>
                       <Plus className="size-5" />
-                      <span className="text-xs font-semibold">Ekle</span>
+                      <span className="text-xs font-semibold">{t.addImage}</span>
                     </>
                   )}
                   <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
@@ -147,6 +156,7 @@ export function ProductForm() {
 
 /** İlan kartındaki satıcı işlemleri */
 export function ProductActions({ id, isActive }: { id: string; isActive: boolean }) {
+  const t = panelMarketCopy[useLocale()].actions;
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
@@ -159,20 +169,20 @@ export function ProductActions({ id, isActive }: { id: string; isActive: boolean
         onClick={() => start(() => setProductActive(id, !isActive))}
       >
         {isActive ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        {isActive ? "Yayından kaldır" : "Yayına al"}
+        {isActive ? t.unpublish : t.publish}
       </Button>
 
       {confirming ? (
         <>
           <Button size="sm" variant="danger" disabled={pending} onClick={() => start(() => deleteProduct(id))}>
-            {pending ? <Loader2 className="size-4 animate-spin" /> : "Kalıcı olarak sil"}
+            {pending ? <Loader2 className="size-4 animate-spin" /> : t.deletePermanently}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-            Vazgeç
+            {t.cancel}
           </Button>
         </>
       ) : (
-        <Button size="sm" variant="ghost" onClick={() => setConfirming(true)} aria-label="İlanı sil">
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(true)} aria-label={t.deleteAria}>
           <Trash2 className="size-4" />
         </Button>
       )}
@@ -192,54 +202,55 @@ export function OrderForm({
   stock: number;
   shipping: boolean;
 }) {
+  const locale = useLocale();
+  const t = panelMarketCopy[locale].order;
   const bound = placeOrder.bind(null, productId);
 
   return (
-    <FormShell action={bound} submitLabel="Siparişi Gönder">
+    <FormShell action={bound} submitLabel={t.submit}>
       {(state) => (
         <>
           <Alert tone="blue">
-            Sipariş bir <strong>rezervasyondur</strong>. Ödeme şu an alıcı ve satıcı arasında yapılır;
-            FIGHTNET tarafı tahsil etmez. Anlaşmazlıkta ilanı bildirebilirsin.
+            {t.noticeBefore}<strong>{t.noticeStrong}</strong>{t.noticeAfter}
           </Alert>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Adet" required>
+            <Field label={t.quantity} required>
               <Input type="number" name="quantity" min={1} max={Math.min(10, stock)} defaultValue={1} required />
             </Field>
-            <Field label="Birim fiyat" hint="Toplam, adet ile çarpılarak hesaplanır">
-              <Input value={formatMoney(price)} readOnly disabled />
+            <Field label={t.unitPrice} hint={t.unitPriceHint}>
+              <Input value={formatMoney(price, "EUR", LOCALE_TAG[locale])} readOnly disabled />
             </Field>
           </div>
 
           {shipping && (
             <>
-              <Field label="Ad Soyad" error={state.fields?.name} required>
+              <Field label={t.name} error={state.fields?.name} required>
                 <Input name="name" required maxLength={80} autoComplete="name" />
               </Field>
-              <Field label="Adres" error={state.fields?.street} required>
+              <Field label={t.street} error={state.fields?.street} required>
                 <Input name="street" required maxLength={120} autoComplete="street-address" />
               </Field>
               <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Posta kodu" required>
+                <Field label={t.postalCode} required>
                   <Input name="postalCode" required maxLength={10} autoComplete="postal-code" />
                 </Field>
-                <Field label="Şehir" required>
+                <Field label={t.city} required>
                   <Input name="city" required maxLength={60} autoComplete="address-level2" />
                 </Field>
-                <Field label="Ülke" required>
+                <Field label={t.country} required>
                   <Select name="country" defaultValue="DE">
-                    <option value="DE">Almanya</option>
-                    <option value="AT">Avusturya</option>
-                    <option value="CH">İsviçre</option>
+                    <option value="DE">{t.countries.DE}</option>
+                    <option value="AT">{t.countries.AT}</option>
+                    <option value="CH">{t.countries.CH}</option>
                   </Select>
                 </Field>
               </div>
             </>
           )}
 
-          <Field label="Satıcıya not">
-            <Textarea name="note" rows={2} maxLength={300} placeholder="Elden teslim tercih ederim…" />
+          <Field label={t.note}>
+            <Textarea name="note" rows={2} maxLength={300} placeholder={t.notePlaceholder} />
           </Field>
         </>
       )}

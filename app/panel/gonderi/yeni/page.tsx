@@ -2,18 +2,24 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { Card, CardBody, Section, Alert } from "@/components/ui";
 import { PostForm } from "@/components/post-form";
+import { getLocale } from "@/lib/i18n/server";
+import { panelPostsCopy } from "@/lib/i18n/pages/panel-posts";
 
-export const metadata: Metadata = { title: "Yeni Gönderi", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelPostsCopy[await getLocale()];
+  return { title: copy.new.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function NewPostPage() {
   await requireUser();
+  const copy = panelPostsCopy[await getLocale()].new;
 
   return (
-    <Section title="Yeni Gönderi" subtitle="Antrenman videon, teknik anlatımın veya müsabaka anın">
-      <Alert tone="amber" title="İçerik politikası">
-        Cinsel içerik, doping teşviki ve aşırı kilo düşürme talimatı yasaktır.
-        Videolar otomatik ön filtreden geçer ve moderasyon onayı sonrası yayınlanır.
+    <Section title={copy.title} subtitle={copy.subtitle}>
+      <Alert tone="amber" title={copy.policy.title}>
+        {copy.policy.body}
       </Alert>
       <Card>
         <CardBody>

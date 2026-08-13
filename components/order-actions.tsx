@@ -4,19 +4,22 @@ import { useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { setOrderStatus } from "@/app/panel/pazar/actions";
 import { Button } from "@/components/ui";
+import { useLocale } from "@/components/i18n/provider";
+import { panelMarketCopy } from "@/lib/i18n/pages/panel-market";
 
 /** Satıcının sipariş durumunu ilerletmesi (§4.4) */
 export function SellerOrderActions({ orderId, status }: { orderId: string; status: string }) {
+  const t = panelMarketCopy[useLocale()].seller;
   const [pending, start] = useTransition();
 
   if (status === "DELIVERED" || status === "CANCELLED" || status === "REFUNDED") return null;
 
   const next =
     status === "PENDING"
-      ? ({ value: "PAID", label: "Ödeme alındı" } as const)
+      ? ({ value: "PAID", label: t.markPaid } as const)
       : status === "PAID"
-        ? ({ value: "SHIPPED", label: "Kargoya verdim" } as const)
-        : ({ value: "DELIVERED", label: "Teslim edildi" } as const);
+        ? ({ value: "SHIPPED", label: t.markShipped } as const)
+        : ({ value: "DELIVERED", label: t.markDelivered } as const);
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -29,7 +32,7 @@ export function SellerOrderActions({ orderId, status }: { orderId: string; statu
         disabled={pending}
         onClick={() => start(() => setOrderStatus(orderId, "CANCELLED"))}
       >
-        İptal et
+        {t.cancel}
       </Button>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { videoPoster } from "@/lib/image";
+import { useDict } from "@/components/i18n/provider";
 
 /**
  * Hafif video oynatıcı.
@@ -19,6 +20,7 @@ export function VideoPlayer({
   poster?: string | null;
   className?: string;
 }) {
+  const t = useDict().ui;
   const [active, setActive] = useState(false);
   const ref = useRef<HTMLVideoElement>(null);
   const cover = poster ?? videoPoster(src, 1080);
@@ -42,7 +44,7 @@ export function VideoPlayer({
       ) : (
         <button
           onClick={() => setActive(true)}
-          aria-label="Videoyu oynat"
+          aria-label={t.playVideo}
           className="group relative size-full"
           style={cover ? { backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
         >

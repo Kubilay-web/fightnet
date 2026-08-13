@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Scale } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -8,19 +8,30 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge, Card, CardBody, Section, EmptyState, Alert } from "@/components/ui";
 import { AppealDecision } from "@/components/appeal-decision";
 import { formatDateTime, timeAgo } from "@/lib/utils";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { adminCoreCopy } from "@/lib/i18n/pages/admin-core";
 
-export const metadata: Metadata = { title: "İtirazlar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminCoreCopy[await getLocale()].appeals;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
-const STATUS: Record<string, { label: string; tone: "amber" | "green" | "red" | "neutral" }> = {
-  OPEN: { label: "Açık", tone: "amber" },
-  UPHELD: { label: "Karar korundu", tone: "red" },
-  OVERTURNED: { label: "Karar geri alındı", tone: "green" },
-  DISMISSED: { label: "İşleme alınmadı", tone: "neutral" },
+/** Ton dilden bağımsız; etiket copy modülündeki `appeals.status` tablosundan gelir. */
+const STATUS_TONE: Record<string, "amber" | "green" | "red" | "neutral"> = {
+  OPEN: "amber",
+  UPHELD: "red",
+  OVERTURNED: "green",
+  DISMISSED: "neutral",
 };
 
 export default async function AdminAppealsPage() {
   await requireAdmin();
+  const locale = await getLocale();
+  const c = adminCoreCopy[locale].appeals;
+  const tag = LOCALE_TAG[locale];
 
   const appeals = await safe(
     () =>
@@ -41,29 +52,28 @@ export default async function AdminAppealsPage() {
   return (
     <div className="flex flex-col gap-6">
       <Section
-        title="İtirazlar"
-        subtitle="§11.5 DSA şikayet mekanizması — kararı veren kişiden bağımsız değerlendirme"
+        title={c.title}
+        subtitle={c.subtitle}
       />
 
       <Alert tone="neutral">
-        Sonuçlar{" "}
+        {c.noticeBefore}
         <Link href="/seffaflik" className="font-bold underline">
-          kamuya açık şeffaflık raporunda
-        </Link>{" "}
-        toplu sayı olarak yayınlanır. Karar gerekçesi kullanıcıya aynen iletilir — anlaşılır ve
-        somut yaz.
+          {c.noticeLink}
+        </Link>
+        {c.noticeAfter}
       </Alert>
 
       {open.length > 0 && (
-        <Alert tone="amber" title={`${open.length} itiraz karar bekliyor`} />
+        <Alert tone="amber" title={c.pending(open.length)} />
       )}
 
       {appeals.length === 0 ? (
-        <EmptyState icon={<Scale className="size-10" />} title="İtiraz yok" description="Kuyruk temiz." />
+        <EmptyState icon={<Scale className="size-10" />} title={c.empty.title} description={c.empty.description} />
       ) : (
         <div className="flex flex-col gap-3">
           {appeals.map((a) => {
-            const s = STATUS[a.status];
+            const tone = STATUS_TONE[a.status];
             return (
               <Card key={a.id} className={a.status === "OPEN" ? "border-amber-500/40" : undefined}>
                 <CardBody className="flex flex-col gap-3">
@@ -74,11 +84,11 @@ export default async function AdminAppealsPage() {
                     </Link>
                     <span className="text-xs text-muted">@{a.user.username}</span>
                     <Badge>{a.targetType}</Badge>
-                    <Badge tone={s.tone}>{s.label}</Badge>
-                    <span className="ml-auto text-xs text-muted">{timeAgo(a.createdAt)}</span>
+                    <Badge tone={tone}>{c.status[a.status]}</Badge>
+                    <span className="ml-auto text-xs text-muted">{timeAgo(a.createdAt, locale)}</span>
                   </div>
 
-                  <p className="break-all text-xs text-muted">Konu: {a.targetId}</p>
+                  <p className="break-all text-xs text-muted">{c.subject}{a.targetId}</p>
                   <p className="whitespace-pre-wrap text-sm">{a.body}</p>
 
                   {a.status === "OPEN" ? (
@@ -86,10 +96,10 @@ export default async function AdminAppealsPage() {
                   ) : (
                     a.decision && (
                       <p className="rounded-xl bg-ink-100 px-3 py-2 text-sm dark:bg-ink-800">
-                        <span className="font-bold">Karar: </span>
+                        <span className="font-bold">{c.decision}</span>
                         {a.decision}
                         {a.resolvedAt && (
-                          <span className="ml-2 text-xs text-muted">{formatDateTime(a.resolvedAt)}</span>
+                          <span className="ml-2 text-xs text-muted">{formatDateTime(a.resolvedAt, tag)}</span>
                         )}
                       </p>
                     )

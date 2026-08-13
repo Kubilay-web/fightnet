@@ -6,11 +6,15 @@ import { submitSparringReview } from "@/app/panel/actions";
 import { FormShell } from "@/components/form-shell";
 import { Textarea, Field, Checkbox } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/components/i18n/provider";
+import { panelSparringCopy } from "@/lib/i18n/pages/panel-sparring";
 
 /** §11.2 — Sparring sonrası güvenlik ve itibar değerlendirmesi */
 export function SparringReviewForm({ requestId, partnerName }: { requestId: string; partnerName: string }) {
+  const t = panelSparringCopy[useLocale()].review;
+
   return (
-    <FormShell action={submitSparringReview} submitLabel="Değerlendirmeyi Gönder">
+    <FormShell action={submitSparringReview} submitLabel={t.submit}>
       {() => (
         <>
           <input type="hidden" name="requestId" value={requestId} />
@@ -18,17 +22,18 @@ export function SparringReviewForm({ requestId, partnerName }: { requestId: stri
           <div className="grid gap-4 sm:grid-cols-3">
             <Rating
               name="safety"
-              label="Güvenlik"
-              hint="Kontrollü müydü?"
+              label={t.safety}
+              hint={t.safetyHint}
+              starAria={t.starAria}
             />
-            <Rating name="technique" label="Teknik" hint="Teknik seviye" />
-            <Rating name="punctuality" label="Dakiklik" hint="Zamanında geldi mi?" />
+            <Rating name="technique" label={t.technique} hint={t.techniqueHint} starAria={t.starAria} />
+            <Rating name="punctuality" label={t.punctuality} hint={t.punctualityHint} starAria={t.starAria} />
           </div>
 
-          <Checkbox name="wouldRepeat" defaultChecked label={`${partnerName} ile tekrar sparring yaparım`} />
+          <Checkbox name="wouldRepeat" defaultChecked label={t.wouldRepeat(partnerName)} />
 
-          <Field label="Yorum">
-            <Textarea name="comment" rows={2} maxLength={500} placeholder="Kısa geri bildirim (opsiyonel)" />
+          <Field label={t.comment}>
+            <Textarea name="comment" rows={2} maxLength={500} placeholder={t.commentPlaceholder} />
           </Field>
 
           <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
@@ -37,7 +42,7 @@ export function SparringReviewForm({ requestId, partnerName }: { requestId: stri
               label={
                 <span className="flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
                   <ShieldAlert className="size-4" />
-                  Güvensiz davranış bildir (moderasyona iletilir)
+                  {t.flagUnsafe}
                 </span>
               }
             />
@@ -48,7 +53,17 @@ export function SparringReviewForm({ requestId, partnerName }: { requestId: stri
   );
 }
 
-function Rating({ name, label, hint }: { name: string; label: string; hint?: string }) {
+function Rating({
+  name,
+  label,
+  hint,
+  starAria,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  starAria: (label: string, n: number) => string;
+}) {
   const [value, setValue] = useState(4);
   return (
     <Field label={label} hint={hint}>
@@ -58,7 +73,7 @@ function Rating({ name, label, hint }: { name: string; label: string; hint?: str
             key={n}
             type="button"
             onClick={() => setValue(n)}
-            aria-label={`${label} ${n} yıldız`}
+            aria-label={starAria(label, n)}
             aria-pressed={value === n}
             className="p-0.5"
           >

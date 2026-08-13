@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { ShoppingBag, PackageCheck, Inbox } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -11,21 +11,32 @@ import { SellerOrderActions } from "@/components/order-actions";
 import { cld } from "@/lib/image";
 import { formatMoney, timeAgo, truncate } from "@/lib/utils";
 import { MARKETPLACE_FEE_RATE } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { panelMarketCopy } from "@/lib/i18n/pages/panel-market";
 
-export const metadata: Metadata = { title: "İlanlarım", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelMarketCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
-const ORDER_STATUS: Record<string, { label: string; tone: "neutral" | "amber" | "green" | "blue" | "red" }> = {
-  PENDING: { label: "Beklemede", tone: "amber" },
-  PAID: { label: "Ödendi", tone: "blue" },
-  SHIPPED: { label: "Kargoda", tone: "blue" },
-  DELIVERED: { label: "Teslim edildi", tone: "green" },
-  CANCELLED: { label: "İptal", tone: "red" },
-  REFUNDED: { label: "İade", tone: "red" },
+/** Rozet rengi dilden bağımsız; etiketler `panelMarketCopy.orderStatus` içinde. */
+const ORDER_TONE: Record<string, "neutral" | "amber" | "green" | "blue" | "red"> = {
+  PENDING: "amber",
+  PAID: "blue",
+  SHIPPED: "blue",
+  DELIVERED: "green",
+  CANCELLED: "red",
+  REFUNDED: "red",
 };
 
 export default async function MyMarketplacePage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = panelMarketCopy[locale];
+  const tag = LOCALE_TAG[locale];
 
   const data = await safe(
     async () => {
@@ -73,26 +84,26 @@ export default async function MyMarketplacePage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Ekipman Pazarı"
-        subtitle={`İlanların, gelen siparişler ve satın aldıkların — komisyon %${MARKETPLACE_FEE_RATE * 100}`}
-        action={<ButtonLink href="/panel/pazar/yeni" size="sm">Yeni İlan</ButtonLink>}
+        title={copy.title}
+        subtitle={copy.subtitle(MARKETPLACE_FEE_RATE * 100)}
+        action={<ButtonLink href="/panel/pazar/yeni" size="sm">{copy.newListing}</ButtonLink>}
       />
 
       {user.verification === "LEVEL_0" && (
-        <Alert tone="blue" title="İlan vermek için doğrulama gerekli">
-          Pazarda güven, doğrulanmış kimlikten gelir.{" "}
-          <Link href="/panel/dogrulama" className="font-bold underline">Seviye 1&apos;e geç</Link>
+        <Alert tone="blue" title={copy.verifyAlert.title}>
+          {copy.verifyAlert.body}{" "}
+          <Link href="/panel/dogrulama" className="font-bold underline">{copy.verifyAlert.link}</Link>
         </Alert>
       )}
 
       {/* İlanlarım */}
-      <Section title="İlanlarım">
+      <Section title={copy.myListings}>
         {data.products.length === 0 ? (
           <EmptyState
             icon={<ShoppingBag className="size-10" />}
-            title="Henüz ilanın yok"
-            description="Kullanmadığın eldiveni, kimonoyu ya da koruyucuyu topluluğa sun."
-            action={<ButtonLink href="/panel/pazar/yeni" size="sm">İlan ver</ButtonLink>}
+            title={copy.emptyProducts.title}
+            description={copy.emptyProducts.description}
+            action={<ButtonLink href="/panel/pazar/yeni" size="sm">{copy.emptyProducts.action}</ButtonLink>}
           />
         ) : (
           <Card>
@@ -113,10 +124,10 @@ export default async function MyMarketplacePage() {
                         {truncate(p.title, 60)}
                       </Link>
                       <p className="text-xs text-muted">
-                        {formatMoney(p.price)} · {p.stock} adet · {p.viewCount} görüntülenme · {timeAgo(p.createdAt)}
+                        {formatMoney(p.price, "EUR", tag)} · {copy.stockCount(p.stock)} · {copy.viewCount(p.viewCount)} · {timeAgo(p.createdAt, locale)}
                       </p>
                     </div>
-                    <Badge tone={p.isActive ? "green" : "neutral"}>{p.isActive ? "Yayında" : "Pasif"}</Badge>
+                    <Badge tone={p.isActive ? "green" : "neutral"}>{p.isActive ? copy.active : copy.inactive}</Badge>
                     <ProductActions id={p.id} isActive={p.isActive} />
                   </li>
                 );
@@ -127,29 +138,28 @@ export default async function MyMarketplacePage() {
       </Section>
 
       {/* Gelen siparişler */}
-      <Section title="Gelen Siparişler" subtitle="Satıcı olarak sana ulaşan talepler">
+      <Section title={copy.incoming.title} subtitle={copy.incoming.subtitle}>
         {data.incoming.length === 0 ? (
-          <EmptyState icon={<Inbox className="size-8" />} title="Henüz sipariş yok" />
+          <EmptyState icon={<Inbox className="size-8" />} title={copy.incoming.empty} />
         ) : (
           <Card>
             <ul className="divide-y divide-[var(--border)]">
               {data.incoming.map((item) => {
                 const addr = (item.order.address ?? {}) as Record<string, string>;
-                const s = ORDER_STATUS[item.order.status];
                 return (
                   <li key={item.id} className="flex flex-col gap-2 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="min-w-0 flex-1 truncate font-bold">
                         {truncate(item.product.title, 60)} × {item.quantity}
                       </p>
-                      <Badge tone={s.tone}>{s.label}</Badge>
+                      <Badge tone={ORDER_TONE[item.order.status]}>{copy.orderStatus[item.order.status]}</Badge>
                     </div>
                     <p className="text-xs text-muted">
                       <Link href={`/dovuscular/${item.order.user.slug}`} className="font-semibold hover:underline">
                         {item.order.user.name}
                       </Link>{" "}
-                      · {formatMoney(item.order.total)} (komisyon {formatMoney(item.order.platformFee)}) ·{" "}
-                      {timeAgo(item.order.createdAt)}
+                      · {formatMoney(item.order.total, "EUR", tag)} {copy.commission(formatMoney(item.order.platformFee, "EUR", tag))} ·{" "}
+                      {timeAgo(item.order.createdAt, locale)}
                     </p>
                     {addr.street && (
                       <p className="text-xs text-muted">
@@ -167,28 +177,25 @@ export default async function MyMarketplacePage() {
       </Section>
 
       {/* Satın aldıklarım */}
-      <Section title="Siparişlerim">
+      <Section title={copy.myOrders.title}>
         {data.myOrders.length === 0 ? (
-          <EmptyState icon={<PackageCheck className="size-8" />} title="Henüz satın alman yok" />
+          <EmptyState icon={<PackageCheck className="size-8" />} title={copy.myOrders.empty} />
         ) : (
           <Card>
             <ul className="divide-y divide-[var(--border)]">
-              {data.myOrders.map((o) => {
-                const s = ORDER_STATUS[o.status];
-                return (
-                  <li key={o.id} className="flex flex-wrap items-center gap-2 p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold">
-                        {o.items.map((i) => `${i.product.title} × ${i.quantity}`).join(", ")}
-                      </p>
-                      <p className="text-xs text-muted">
-                        {formatMoney(o.total)} · {timeAgo(o.createdAt)}
-                      </p>
-                    </div>
-                    <Badge tone={s.tone}>{s.label}</Badge>
-                  </li>
-                );
-              })}
+              {data.myOrders.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center gap-2 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold">
+                      {o.items.map((i) => `${i.product.title} × ${i.quantity}`).join(", ")}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {formatMoney(o.total, "EUR", tag)} · {timeAgo(o.createdAt, locale)}
+                    </p>
+                  </div>
+                  <Badge tone={ORDER_TONE[o.status]}>{copy.orderStatus[o.status]}</Badge>
+                </li>
+              ))}
             </ul>
           </Card>
         )}

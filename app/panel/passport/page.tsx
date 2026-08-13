@@ -8,12 +8,21 @@ import { Badge, Card, CardBody, Section, EmptyState, Alert } from "@/components/
 import { PassportDocForm } from "@/components/passport-form";
 import { formatDate, cn } from "@/lib/utils";
 import { PASSPORT_DOC_KINDS } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { passportCopy } from "@/lib/i18n/pages/panel-trust";
 
-export const metadata: Metadata = { title: "FIGHTNET Passport", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = passportCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function PassportPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = passportCopy[locale];
 
   const docs = await safe(
     () =>
@@ -28,37 +37,35 @@ export default async function PassportPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section
-        title="FIGHTNET Passport"
-        subtitle="Spor kanıtların için dijital cüzdan — antrenör lisansı, diploma, turnuva belgeleri"
-      >
-        <Alert tone="blue" title="Kanıt Toplayıcı seviyesi">
-          Belgelerini yüklersin, FIGHTNET ekibi manuel kontrol eder. Onaylanan belgeler
-          profilinde rozet olarak görünür. <b>Sağlık verisi toplamıyoruz</b> — sadece spor kanıtları.
+      <Section title={copy.title} subtitle={copy.subtitle}>
+        <Alert tone="blue" title={copy.intro.title}>
+          {copy.intro.body1}
+          <b>{copy.intro.noHealth}</b>
+          {copy.intro.body2}
         </Alert>
       </Section>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card>
           <CardBody>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Toplam Belge</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted">{copy.stats.total}</p>
             <p className="mt-1 text-2xl font-black tabular-nums">{docs.length}</p>
           </CardBody>
         </Card>
         <Card>
           <CardBody>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Onaylı</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted">{copy.stats.approved}</p>
             <p className="mt-1 text-2xl font-black tabular-nums text-emerald-500">{approved}</p>
           </CardBody>
         </Card>
       </div>
 
-      <Section title="Belgelerim">
+      <Section title={copy.docsTitle}>
         {docs.length === 0 ? (
           <EmptyState
             icon={<FileBadge className="size-10" />}
-            title="Belge yok"
-            description="Antrenör lisansı, müsabaka diploması veya turnuva katılım belgeni yükle."
+            title={copy.empty.title}
+            description={copy.empty.description}
           />
         ) : (
           <Card>
@@ -87,21 +94,26 @@ export default async function PassportPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold">{d.title}</p>
                     <p className="text-xs text-muted">
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       {PASSPORT_DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}
                       {d.issuer && ` · ${d.issuer}`}
-                      {d.issuedAt && ` · ${formatDate(d.issuedAt)}`}
+                      {d.issuedAt && ` · ${formatDate(d.issuedAt, LOCALE_TAG[locale])}`}
                     </p>
                     {d.reviewNote && <p className="mt-1 text-xs text-blood-500">{d.reviewNote}</p>}
                   </div>
 
                   <Badge tone={d.status === "APPROVED" ? "green" : d.status === "REJECTED" ? "red" : "amber"}>
-                    {d.status === "APPROVED" ? "Onaylı" : d.status === "REJECTED" ? "Reddedildi" : "İnceleniyor"}
+                    {d.status === "APPROVED"
+                      ? copy.status.approved
+                      : d.status === "REJECTED"
+                        ? copy.status.rejected
+                        : copy.status.pending}
                   </Badge>
 
                   <form action={deletePassportDoc.bind(null, d.id)}>
                     <button
                       type="submit"
-                      aria-label="Belgeyi sil"
+                      aria-label={copy.deleteDoc}
                       className="rounded-lg p-2 text-muted transition-colors hover:bg-blood-500/10 hover:text-blood-500"
                     >
                       <Trash2 className="size-4" />
@@ -114,7 +126,7 @@ export default async function PassportPage() {
         )}
       </Section>
 
-      <Section title="Belge Ekle">
+      <Section title={copy.addTitle}>
         <Card>
           <CardBody>
             <PassportDocForm />
@@ -122,11 +134,10 @@ export default async function PassportPage() {
         </Card>
       </Section>
 
-      <Alert tone="neutral" title="Neden sağlık verisi yok?">
+      <Alert tone="neutral" title={copy.why.title}>
         <span className="flex items-start gap-2">
           <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-          Sağlık verileri KVKK/GDPR Madde 9 kapsamında en yüksek koruma gerektirir.
-          Sadeleştirilmiş Passport bu karmaşıklık olmadan faydanın %80'ini sunar.
+          {copy.why.body}
         </span>
       </Alert>
     </div>

@@ -8,16 +8,26 @@ import { Badge, Card, CardBody, Section, EmptyState, ButtonLink } from "@/compon
 import { SponsorApplyButton } from "@/components/sponsor-apply";
 import { cld } from "@/lib/image";
 import { formatDate, compact } from "@/lib/utils";
-import { DISCIPLINE_LABEL, SKILL_LABEL } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { labelsFor } from "@/lib/i18n/labels";
+import { sponsorshipCopy } from "@/lib/i18n/pages/sponsorship";
 
-export const metadata: Metadata = {
-  title: "Sponsorluk",
-  description: "Dövüş sporu markalarıyla sporcuları buluşturan sponsor portalı.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = sponsorshipCopy[await getLocale()];
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/sponsorluk"),
+  };
+}
 
 export const revalidate = 300;
 
 export default async function SponsorshipPage() {
+  const locale = await getLocale();
+  const c = sponsorshipCopy[locale];
+  const L = labelsFor(locale);
   const [data, session] = await Promise.all([
     safe(
       () =>
@@ -41,19 +51,19 @@ export default async function SponsorshipPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Sponsorluk Portalı"
-        subtitle="Markalar ve sporcular arasında doğrudan eşleştirme"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           <ButtonLink href="/iletisim" variant="outline" size="sm">
-            Sponsor Ol
+            {c.becomeSponsor}
           </ButtonLink>
         }
       >
         {data.length === 0 ? (
           <EmptyState
             icon={<Handshake className="size-10" />}
-            title="Aktif sponsorluk yok"
-            description="Yakında markalar tekliflerini burada yayınlayacak."
+            title={c.emptyTitle}
+            description={c.emptyBody}
           />
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
@@ -86,13 +96,13 @@ export default async function SponsorshipPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {o.disciplines.map((d) => (
                       <Badge key={d} tone="red">
-                        {DISCIPLINE_LABEL[d]}
+                        {L.discipline[d]}
                       </Badge>
                     ))}
-                    <Badge>{SKILL_LABEL[o.minLevel]}+</Badge>
+                    <Badge>{L.skill[o.minLevel]}+</Badge>
                     {o.minFollowers > 0 && (
                       <Badge tone="blue">
-                        <Users className="size-3" /> {compact(o.minFollowers)}+ takipçi
+                        <Users className="size-3" /> {c.minFollowers.replace("{count}", compact(o.minFollowers))}
                       </Badge>
                     )}
                   </div>
@@ -105,10 +115,10 @@ export default async function SponsorshipPage() {
                     )}
                     {o.deadline && (
                       <span className="flex items-center gap-1">
-                        <Calendar className="size-3" /> Son başvuru: {formatDate(o.deadline)}
+                        <Calendar className="size-3" /> {c.deadline}: {formatDate(o.deadline, LOCALE_TAG[locale])}
                       </span>
                     )}
-                    <span>{o._count.applications} başvuru</span>
+                    <span>{c.applications.replace("{count}", String(o._count.applications))}</span>
                   </div>
 
                   <div className="border-t border-[var(--border)] pt-3">

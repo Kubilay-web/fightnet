@@ -1,4 +1,5 @@
-import Link from "next/link";
+// Dil farkındalı bağlantı: href kanonik yazılır, çeviri tek noktada yapılır.
+import { Link } from "@/components/i18n/link";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 

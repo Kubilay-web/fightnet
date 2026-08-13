@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { FileBadge, ExternalLink } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -12,12 +12,21 @@ import { ReviewActions } from "@/components/admin-review-actions";
 import { cld } from "@/lib/image";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { PASSPORT_DOC_KINDS } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { adminPassportCopy } from "@/lib/i18n/pages/admin-ops";
 
-export const metadata: Metadata = { title: "Passport Belgeleri", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminPassportCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminPassportPage() {
   await requireAdmin();
+  const locale = await getLocale();
+  const t = adminPassportCopy[locale];
 
   const docs = await safe(
     () =>
@@ -38,13 +47,14 @@ export default async function AdminPassportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Section
-        title="Passport Belgeleri"
-        subtitle={`${docs.length} belge inceleme bekliyor — Kanıt Toplayıcı seviyesi (§9.1)`}
-      />
+      <Section title={t.title} subtitle={t.subtitle(docs.length)} />
 
       {docs.length === 0 ? (
-        <EmptyState icon={<FileBadge className="size-10" />} title="Kuyruk temiz" description="Bekleyen belge yok." />
+        <EmptyState
+          icon={<FileBadge className="size-10" />}
+          title={t.emptyTitle}
+          description={t.emptyDescription}
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {docs.map((d) => (
@@ -59,8 +69,9 @@ export default async function AdminPassportPage() {
                       </Link>
                       <VerifiedMark level={d.user.verification} />
                     </div>
-                    <p className="text-xs text-muted">@{d.user.username} · {formatDateTime(d.createdAt)}</p>
+                    <p className="text-xs text-muted">@{d.user.username} · {formatDateTime(d.createdAt, LOCALE_TAG[locale])}</p>
                   </div>
+                  {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                   <Badge>{PASSPORT_DOC_KINDS.find((k) => k.value === d.kind)?.label ?? d.kind}</Badge>
                 </div>
 
@@ -68,8 +79,8 @@ export default async function AdminPassportPage() {
                   <p className="font-bold">{d.title}</p>
                   <p className="text-xs text-muted">
                     {d.issuer && `${d.issuer} · `}
-                    {d.issuedAt && `Veriliş: ${formatDate(d.issuedAt)}`}
-                    {d.expiresAt && ` · Geçerlilik: ${formatDate(d.expiresAt)}`}
+                    {d.issuedAt && `${t.issued}: ${formatDate(d.issuedAt, LOCALE_TAG[locale])}`}
+                    {d.expiresAt && ` · ${t.expires}: ${formatDate(d.expiresAt, LOCALE_TAG[locale])}`}
                   </p>
                 </div>
 
@@ -81,7 +92,7 @@ export default async function AdminPassportPage() {
                 >
                   <Image src={cld(d.fileUrl, { w: 640, h: 428 })} alt={d.title} fill sizes="320px" className="object-cover" />
                   <span className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/70 px-2 py-1 text-[11px] font-bold text-white">
-                    Belgeyi büyüt
+                    {t.openDocument}
                     <ExternalLink className="size-3" />
                   </span>
                 </a>

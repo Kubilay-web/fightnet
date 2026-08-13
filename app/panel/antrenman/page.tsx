@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Dumbbell, Flame, Clock, TrendingUp, Trash2 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -9,14 +8,22 @@ import { Card, CardBody, ButtonLink, Section, Stat, EmptyState, Badge, Paginatio
 import { StreakCalendar } from "@/components/streak-calendar";
 import { formatDate } from "@/lib/utils";
 import { DISCIPLINE_LABEL, PAGE_SIZE } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { panelTrainingCopy } from "@/lib/i18n/pages/panel-training";
 
-export const metadata: Metadata = { title: "Antrenman Günlüğü", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelTrainingCopy[await getLocale()];
+  return { title: copy.meta.list, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 type SP = Promise<Record<string, string | undefined>>;
 
 export default async function TrainingPage({ searchParams }: { searchParams: SP }) {
-  const [user, sp] = await Promise.all([requireUser(), searchParams]);
+  const [user, sp, locale] = await Promise.all([requireUser(), searchParams, getLocale()]);
+  const t = panelTrainingCopy[locale].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
 
   const data = await safe(
@@ -58,20 +65,24 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
   return (
     <div className="flex flex-col gap-6">
       <Section
-        title="Antrenman Günlüğü"
-        subtitle="Her seansı kaydet, streak sayacını büyüt"
+        title={t.title}
+        subtitle={t.subtitle}
         action={
           <ButtonLink href="/panel/antrenman/yeni" size="sm">
-            <Dumbbell className="size-4" /> Antrenman Ekle
+            <Dumbbell className="size-4" /> {t.add}
           </ButtonLink>
         }
       >
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Stat label="Güncel Streak" value={`${user.trainingStreak} gün`} tone="red" />
-          <Stat label="Toplam" value={data.total} hint="antrenman" />
-          <Stat label="Son 30 gün" value={data.monthAgg._count} hint={`${data.monthAgg._sum.durationMin ?? 0} dakika`} />
+          <Stat label={t.stats.streak} value={`${user.trainingStreak} ${t.stats.dayUnit}`} tone="red" />
+          <Stat label={t.stats.total} value={data.total} hint={t.stats.totalHint} />
           <Stat
-            label="Ort. yoğunluk"
+            label={t.stats.last30}
+            value={data.monthAgg._count}
+            hint={`${data.monthAgg._sum.durationMin ?? 0} ${t.stats.minuteUnit}`}
+          />
+          <Stat
+            label={t.stats.avgIntensity}
             value={data.monthAgg._avg.intensity ? `${data.monthAgg._avg.intensity.toFixed(1)}/5` : "—"}
           />
         </div>
@@ -81,7 +92,7 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
       <Card>
         <CardBody>
           <h2 className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted">
-            <Flame className="size-3.5 text-blood-500" /> Son 12 Ay
+            <Flame className="size-3.5 text-blood-500" /> {t.heatmap}
           </h2>
           <StreakCalendar
             days={data.calendarLogs.map((l) => ({
@@ -94,14 +105,17 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
 
       {/* Disipline göre dağılım */}
       {data.byDiscipline.length > 0 && (
-        <Section title="Disipline Göre">
+        <Section title={t.byDiscipline}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {data.byDiscipline.map((d) => (
               <Card key={d.discipline}>
                 <CardBody>
+                  {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                   <p className="truncate text-sm font-bold">{DISCIPLINE_LABEL[d.discipline]}</p>
                   <p className="mt-1 text-xl font-black tabular-nums">{d._count}</p>
-                  <p className="text-xs text-muted">{Math.round((d._sum.durationMin ?? 0) / 60)} saat</p>
+                  <p className="text-xs text-muted">
+                    {Math.round((d._sum.durationMin ?? 0) / 60)} {t.hourUnit}
+                  </p>
                 </CardBody>
               </Card>
             ))}
@@ -109,15 +123,15 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
         </Section>
       )}
 
-      <Section title="Kayıtlar">
+      <Section title={t.records}>
         {data.logs.length === 0 ? (
           <EmptyState
             icon={<Dumbbell className="size-10" />}
-            title="Henüz kayıt yok"
-            description="İlk antrenmanını kaydet — streak sayacın bugünden başlasın."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
             action={
               <ButtonLink href="/panel/antrenman/yeni" size="sm" className="mt-2">
-                Antrenman Ekle
+                {t.emptyAction}
               </ButtonLink>
             }
           />
@@ -131,25 +145,30 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
                       <Dumbbell className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
+                      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                       <p className="truncate font-bold">
                         {DISCIPLINE_LABEL[l.discipline]}
                         {l.type ? ` · ${l.type}` : ""}
                       </p>
                       <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
-                        <span>{formatDate(l.date)}</span>
+                        <span>{formatDate(l.date, LOCALE_TAG[locale])}</span>
                         <span className="flex items-center gap-1">
-                          <Clock className="size-3" /> {l.durationMin} dk
+                          <Clock className="size-3" /> {l.durationMin} {t.minuteShort}
                         </span>
                         <span className="flex items-center gap-1">
                           <TrendingUp className="size-3" /> {l.intensity}/5
                         </span>
-                        {l.rounds ? <span>{l.rounds} raunt</span> : null}
+                        {l.rounds ? (
+                          <span>
+                            {l.rounds} {t.roundUnit}
+                          </span>
+                        ) : null}
                         {l.weightKg ? <span>{l.weightKg} kg</span> : null}
                       </p>
                       {l.techniques.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
-                          {l.techniques.slice(0, 5).map((t) => (
-                            <Badge key={t}>{t}</Badge>
+                          {l.techniques.slice(0, 5).map((tech) => (
+                            <Badge key={tech}>{tech}</Badge>
                           ))}
                         </div>
                       )}
@@ -158,7 +177,7 @@ export default async function TrainingPage({ searchParams }: { searchParams: SP 
                     <form action={deleteTraining.bind(null, l.id)}>
                       <button
                         type="submit"
-                        aria-label="Kaydı sil"
+                        aria-label={t.deleteAria}
                         className="rounded-lg p-2 text-muted transition-colors hover:bg-blood-500/10 hover:text-blood-500"
                       >
                         <Trash2 className="size-4" />

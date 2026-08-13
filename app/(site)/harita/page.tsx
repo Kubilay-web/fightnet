@@ -3,15 +3,22 @@ import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
 import { Section } from "@/components/ui";
 import { GymMap } from "@/components/gym-map";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { mapCopy } from "@/lib/i18n/pages/map";
 
-export const metadata: Metadata = {
-  title: "Harita",
-  description: "DACH bölgesindeki dövüş sporu salonlarını ve etkinliklerini harita üzerinde gör.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = mapCopy[await getLocale()];
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/harita"),
+  };
+}
 
 export const revalidate = 300;
 
 export default async function MapPage() {
+  const c = mapCopy[await getLocale()];
   const data = await safe(
     async () => {
       const now = new Date();
@@ -46,8 +53,10 @@ export default async function MapPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Harita"
-        subtitle={`${data.gyms.length} salon ve ${data.events.length} etkinlik haritada`}
+        title={c.title}
+        subtitle={c.subtitle
+          .replace("{gyms}", String(data.gyms.length))
+          .replace("{events}", String(data.events.length))}
       >
         <GymMap
           gyms={data.gyms.map((g) => ({

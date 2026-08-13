@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { useRouter } from "next/navigation";
 import { Heart, MessageCircle, Send, Loader2, Share2 } from "lucide-react";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
@@ -40,6 +40,7 @@ export function PostInteractions({
   const [comments, setComments] = useState(initialComments);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   function toggleLike() {
     if (!authed) return router.push("/giris");
@@ -65,10 +66,14 @@ export function PostInteractions({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body: text }),
     });
+    const json = await res.json().catch(() => ({}));
     if (res.ok) {
-      const { comment } = await res.json();
-      setComments((c) => [comment, ...c]);
+      // §11.3 — ön filtre incelemeye aldıysa yorum listeye eklenmez
+      if (json.comment) setComments((c) => [json.comment, ...c]);
+      setNotice(json.message ?? null);
       setBody("");
+    } else {
+      setNotice(json.error ?? "Yorum gönderilemedi");
     }
     setSending(false);
   }
@@ -110,6 +115,12 @@ export function PostInteractions({
           <Share2 className="size-5" />
         </button>
       </div>
+
+      {notice && (
+        <p role="status" className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+          {notice}
+        </p>
+      )}
 
       {authed ? (
         <form onSubmit={submitComment} className="flex gap-2">

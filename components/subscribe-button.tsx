@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, Heart, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
+import { useLocale } from "@/components/i18n/provider";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { panelBillingCopy } from "@/lib/i18n/pages/panel-billing";
 
 export function SubscribeButton({
   creatorId,
@@ -21,8 +24,10 @@ export function SubscribeButton({
   isCurrent: boolean;
   creatorName: string;
 }) {
+  const locale = useLocale();
+  const t = panelBillingCopy[locale].subscribeButton;
   const router = useRouter();
-  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+  const [state, setState] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function subscribe() {
@@ -37,13 +42,14 @@ export function SubscribeButton({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ creatorId, tierId }),
     });
-    if (res.ok) {
-      setState("done");
-      router.refresh();
+    const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (res.ok && j.url) {
+      // Stripe Checkout'a geçiş — abonelik ancak ödeme onayı webhook'a
+      // ulaştığında aktifleşir, burada "abone oldun" denmez.
+      window.location.assign(j.url);
       return;
     }
-    const j = await res.json().catch(() => ({}));
-    setError(j.error ?? "Abonelik başlatılamadı");
+    setError(j.error ?? t.error);
     setState("idle");
   }
 
@@ -62,20 +68,12 @@ export function SubscribeButton({
     return (
       <div className="flex flex-col gap-2">
         <span className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/10 py-2.5 text-sm font-bold text-emerald-500">
-          <CheckCircle2 className="size-4" /> Aktif abonelik
+          <CheckCircle2 className="size-4" /> {t.active}
         </span>
         <Button variant="ghost" size="sm" full onClick={cancel} disabled={state === "loading"}>
-          Aboneliği iptal et
+          {t.cancel}
         </Button>
       </div>
-    );
-  }
-
-  if (state === "done") {
-    return (
-      <span className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500/10 py-2.5 text-sm font-bold text-emerald-500">
-        <CheckCircle2 className="size-4" /> Abone oldun!
-      </span>
     );
   }
 
@@ -86,7 +84,7 @@ export function SubscribeButton({
           <Loader2 className="size-4 animate-spin" />
         ) : (
           <>
-            <Heart className="size-4" /> {formatMoney(price)}/ay destekle
+            <Heart className="size-4" /> {t.support.replace("{price}", formatMoney(price, "EUR", LOCALE_TAG[locale]))}
           </>
         )}
       </Button>

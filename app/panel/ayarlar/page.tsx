@@ -5,12 +5,19 @@ import { requireUser } from "@/lib/auth";
 import { Card, CardBody, Section, Alert } from "@/components/ui";
 import { SettingsForm, PasswordForm, DataExportPanel, DeleteAccountForm } from "@/components/settings-forms";
 import { PushToggle } from "@/components/push-toggle";
+import { getLocale } from "@/lib/i18n/server";
+import { panelSettingsCopy } from "@/lib/i18n/pages/panel-settings";
 
-export const metadata: Metadata = { title: "Ayarlar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelSettingsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
+  const t = panelSettingsCopy[await getLocale()];
 
   const prefs = await safe(
     () =>
@@ -23,9 +30,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Ayarlar" subtitle="Dil, bildirim ve gizlilik tercihlerin" />
+      <Section title={t.header.title} subtitle={t.header.subtitle} />
 
-      <Section title="Tercihler">
+      <Section title={t.prefs}>
         <Card>
           <CardBody>
             <SettingsForm
@@ -38,7 +45,7 @@ export default async function SettingsPage() {
       </Section>
 
       {/* §4.1 — Push bildirimleri */}
-      <Section title="Push Bildirimleri" subtitle="Cihaz başına ayrı ayarlanır">
+      <Section title={t.pushSection.title} subtitle={t.pushSection.subtitle}>
         <Card>
           <CardBody>
             <PushToggle vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
@@ -46,7 +53,7 @@ export default async function SettingsPage() {
         </Card>
       </Section>
 
-      <Section title="Şifre">
+      <Section title={t.passwordSection}>
         <Card>
           <CardBody>
             <PasswordForm />
@@ -55,20 +62,21 @@ export default async function SettingsPage() {
       </Section>
 
       {/* §5.7 — Veri taşınabilirliği */}
-      <Section title="Verilerim" subtitle="KVKK/GDPR — verilerini indir veya hesabını sil">
+      <Section title={t.data.title} subtitle={t.data.subtitle}>
         <Card>
           <CardBody className="flex flex-col gap-4">
             <DataExportPanel />
+            {/* §5.7 — özel nitelikli sağlık verisi ayrı yönetilir */}
+            <p className="text-xs text-muted">{t.data.healthNote}</p>
           </CardBody>
         </Card>
       </Section>
 
-      <Section title="Tehlikeli Bölge">
+      <Section title={t.danger.title}>
         <Card className="border-blood-500/40">
           <CardBody className="flex flex-col gap-3">
-            <Alert tone="red" title="Hesabı kalıcı olarak sil">
-              Tüm profilin, antrenman kayıtların, gönderilerin ve rezervasyonların kalıcı olarak silinir.
-              Bu işlem geri alınamaz.
+            <Alert tone="red" title={t.danger.alertTitle}>
+              {t.danger.alertBody}
             </Alert>
             <DeleteAccountForm username={user.username} />
           </CardBody>

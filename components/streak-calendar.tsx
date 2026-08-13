@@ -1,10 +1,14 @@
 import { cn } from "@/lib/utils";
+import { getLocale } from "@/lib/i18n/server";
+import { panelTrainingCopy } from "@/lib/i18n/pages/panel-training";
 
 /**
  * Yıllık antrenman ısı haritası (GitHub tarzı).
  * Sunucu bileşeni — istemciye JS gitmez, sadece HTML.
  */
-export function StreakCalendar({ days }: { days: { date: string; minutes: number }[] }) {
+export async function StreakCalendar({ days }: { days: { date: string; minutes: number }[] }) {
+  const t = panelTrainingCopy[await getLocale()].calendar;
+
   const byDate = new Map<string, number>();
   for (const d of days) byDate.set(d.date, (byDate.get(d.date) ?? 0) + d.minutes);
 
@@ -46,7 +50,7 @@ export function StreakCalendar({ days }: { days: { date: string; minutes: number
               {week.map((day) => (
                 <span
                   key={day.date}
-                  title={`${day.date}: ${day.minutes} dk`}
+                  title={`${day.date}: ${day.minutes} ${t.minuteShort}`}
                   className={cn(
                     "size-[10px] rounded-[2px]",
                     level(day.minutes),
@@ -61,13 +65,13 @@ export function StreakCalendar({ days }: { days: { date: string; minutes: number
       </div>
 
       <div className="flex items-center gap-2 text-[11px] text-muted">
-        <span>Az</span>
+        <span>{t.less}</span>
         <span className="size-[10px] rounded-[2px] bg-ink-200 dark:bg-ink-800" />
         <span className="size-[10px] rounded-[2px] bg-blood-900" />
         <span className="size-[10px] rounded-[2px] bg-blood-700" />
         <span className="size-[10px] rounded-[2px] bg-blood-500" />
         <span className="size-[10px] rounded-[2px] bg-blood-400" />
-        <span>Çok</span>
+        <span>{t.more}</span>
       </div>
     </div>
   );

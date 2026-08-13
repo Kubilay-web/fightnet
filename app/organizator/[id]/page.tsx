@@ -6,18 +6,13 @@ import { safe } from "@/lib/queries";
 import { requireUser } from "@/lib/auth";
 import { deleteFight } from "@/app/organizator/actions";
 import { Badge, Card, CardBody, Section, EmptyState, ButtonLink, LiveBadge } from "@/components/ui";
+import { StreamSetup } from "@/components/stream-setup";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { EventForm, FightForm, FightResultForm } from "@/components/event-forms";
 import { RegistrationReview } from "@/components/registration-review";
 import { DISCIPLINE_LABEL, FIGHT_METHOD_LABEL } from "@/lib/constants";
-
-const REG_LABEL: Record<string, string> = {
-  PENDING: "Beklemede",
-  ACCEPTED: "Kabul",
-  WAITLISTED: "Yedek",
-  REJECTED: "Ret",
-  WITHDRAWN: "Geri çekildi",
-};
+import { getLocale } from "@/lib/i18n/server";
+import { organizerCopy } from "@/lib/i18n/pages/organizer";
 
 const REG_TONE: Record<string, "amber" | "green" | "blue" | "red" | "neutral"> = {
   PENDING: "amber",
@@ -27,7 +22,11 @@ const REG_TONE: Record<string, "amber" | "green" | "blue" | "red" | "neutral"> =
   WITHDRAWN: "neutral",
 };
 
-export const metadata: Metadata = { title: "Etkinlik Yönetimi", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = organizerCopy[await getLocale()].manage;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 type Params = Promise<{ id: string }>;
@@ -40,7 +39,8 @@ function toLocalInput(d: Date | null): string {
 }
 
 export default async function EventManagePage({ params }: { params: Params }) {
-  const [{ id }, user] = await Promise.all([params, requireUser()]);
+  const [{ id }, user, locale] = await Promise.all([params, requireUser(), getLocale()]);
+  const t = organizerCopy[locale].manage;
 
   const event = await safe(
     () =>
@@ -52,6 +52,12 @@ export default async function EventManagePage({ params }: { params: Params }) {
           venueName: true, street: true, city: true, postalCode: true, country: true,
           lat: true, lng: true, ticketUrl: true, ticketPrice: true, capacity: true,
           streamUrl: true, isPPV: true, ppvPrice: true, registrationOpen: true,
+          streamChannel: {
+            select: {
+              provider: true, playbackUrl: true, streamKey: true, ingestEndpoint: true,
+              status: true, authorized: true, viewerPeak: true,
+            },
+          },
           posterUrl: true, posterId: true, organizerId: true,
           fights: {
             orderBy: [{ isMainEvent: "desc" }, { order: "asc" }],
@@ -89,12 +95,12 @@ export default async function EventManagePage({ params }: { params: Params }) {
     <div className="flex flex-col gap-8">
       <Section
         title={event.title}
-        subtitle={`${event.city} · ${event.fights.length} müsabaka`}
+        subtitle={`${event.city} · ${event.fights.length} ${t.fights}`}
         action={
           <div className="flex gap-2">
             {isLive && <LiveBadge />}
             <ButtonLink href={`/etkinlikler/${event.slug}`} target="_blank" variant="outline" size="sm">
-              <ExternalLink className="size-4" /> Sayfayı gör
+              <ExternalLink className="size-4" /> {t.viewPage}
             </ButtonLink>
           </div>
         }
@@ -103,32 +109,34 @@ export default async function EventManagePage({ params }: { params: Params }) {
       {/* Canlı skor paneli */}
       <Section
         id="canli"
-        title="Canlı Skor Kontrolü"
-        subtitle="Raunt ilerlet, sonuç gir — izleyicilere anlık yansır"
+        title={t.scoring.title}
+        subtitle={t.scoring.subtitle}
       >
         {event.fights.length === 0 ? (
-          <EmptyState title="Müsabaka yok" description="Önce dövüş kartını oluştur." />
+          <EmptyState title={t.scoring.emptyTitle} description={t.scoring.emptyDescription} />
         ) : (
           <div className="flex flex-col gap-4">
             {event.fights.map((f) => (
               <Card key={f.id} className={f.status === "LIVE" ? "border-blood-500" : undefined}>
                 <CardBody className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    {f.isMainEvent && <Badge tone="gold">Ana Müsabaka</Badge>}
-                    {f.isTitleFight && <Badge tone="red">Ünvan</Badge>}
+                    {f.isMainEvent && <Badge tone="gold">{t.mainEvent}</Badge>}
+                    {f.isTitleFight && <Badge tone="red">{t.titleFight}</Badge>}
+                    {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                     <Badge>{DISCIPLINE_LABEL[f.discipline]}</Badge>
                     {f.weightClass && <span className="text-xs text-muted">{f.weightClass}</span>}
-                    <span className="text-xs text-muted">{f.rounds} raunt</span>
+                    <span className="text-xs text-muted">{f.rounds} {t.rounds}</span>
                     {f.status === "LIVE" && <LiveBadge />}
                     {f.status === "FINISHED" && f.method && (
                       <Badge tone="green">
+                        {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                         {f.winnerCorner === "RED" ? f.redName : f.blueName} · {FIGHT_METHOD_LABEL[f.method]}
                       </Badge>
                     )}
                     <form action={deleteFight.bind(null, event.id, f.id)} className="ml-auto">
                       <button
                         type="submit"
-                        aria-label="Müsabakayı sil"
+                        aria-label={t.deleteFight}
                         className="rounded-lg p-1.5 text-muted transition-colors hover:bg-blood-500/10 hover:text-blood-500"
                       >
                         <Trash2 className="size-4" />
@@ -138,7 +146,7 @@ export default async function EventManagePage({ params }: { params: Params }) {
 
                   <p className="font-display text-lg font-black">
                     <span className="text-blood-500">{f.redName}</span>
-                    <span className="mx-2 text-muted">vs</span>
+                    <span className="mx-2 text-muted">{t.vs}</span>
                     <span className="text-blue-500">{f.blueName}</span>
                   </p>
 
@@ -152,18 +160,18 @@ export default async function EventManagePage({ params }: { params: Params }) {
 
       {/* §4.4 — Müsabaka kayıtları */}
       <Section
-        title="Müsabaka Kayıtları"
+        title={t.registrations.title}
         subtitle={
           event.registrationOpen
-            ? `${event.registrations.length} başvuru · kayıtlar açık`
-            : "Kayıtlar kapalı — Etkinlik Bilgileri bölümünden açabilirsin"
+            ? t.registrations.openSubtitle(event.registrations.length)
+            : t.registrations.closedSubtitle
         }
       >
         {event.registrations.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="size-8" />}
-            title="Henüz kayıt yok"
-            description="Kayıtları açtığında sporcular buradan başvurur."
+            title={t.registrations.emptyTitle}
+            description={t.registrations.emptyDescription}
           />
         ) : (
           <div className="flex flex-col gap-3">
@@ -176,24 +184,25 @@ export default async function EventManagePage({ params }: { params: Params }) {
                       {r.user.name}
                       <VerifiedMark level={r.user.verification} />
                     </span>
-                    <Badge tone={REG_TONE[r.status]}>{REG_LABEL[r.status]}</Badge>
+                    <Badge tone={REG_TONE[r.status]}>{t.registrations.status[r.status]}</Badge>
                     {r.user.isMinor && (
                       <Badge tone={r.guardianApproved ? "amber" : "red"}>
-                        {r.guardianApproved ? "18 yaş altı · veli onaylı" : "18 yaş altı · onay yok"}
+                        {r.guardianApproved ? t.registrations.minorApproved : t.registrations.minorNotApproved}
                       </Badge>
                     )}
-                    {!r.medicalConfirmed && <Badge tone="red">Sağlık beyanı yok</Badge>}
+                    {!r.medicalConfirmed && <Badge tone="red">{t.registrations.noMedical}</Badge>}
                   </div>
 
                   <p className="text-sm text-muted">
+                    {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                     {DISCIPLINE_LABEL[r.discipline]}
                     {r.weightClass && ` · ${r.weightClass}`}
                     {r.weightKg && ` · ${r.weightKg} kg`}
-                    {r.record && ` · Bilanço ${r.record}`}
+                    {r.record && ` · ${t.registrations.record} ${r.record}`}
                     {r.gymName && ` · ${r.gymName}`}
-                    {r.coachName && ` · Antrenör: ${r.coachName}`}
+                    {r.coachName && ` · ${t.registrations.coach}: ${r.coachName}`}
                   </p>
-                  <p className="text-xs text-muted">Acil durum: {r.emergency}</p>
+                  <p className="text-xs text-muted">{t.registrations.emergency}: {r.emergency}</p>
                   {r.note && <p className="text-xs italic text-muted">&ldquo;{r.note}&rdquo;</p>}
 
                   <RegistrationReview eventId={event.id} registrationId={r.id} status={r.status} />
@@ -204,7 +213,15 @@ export default async function EventManagePage({ params }: { params: Params }) {
         )}
       </Section>
 
-      <Section title="Müsabaka Ekle">
+      {/* §4.4 — Canlı yayın kanalı ve PPV */}
+      <Section
+        title={t.stream.title}
+        subtitle={event.isPPV ? t.stream.ppv(event.ppvPrice ?? 0) : t.stream.free}
+      >
+        <StreamSetup eventId={event.id} isPPV={event.isPPV} channel={event.streamChannel} />
+      </Section>
+
+      <Section title={t.addFight}>
         <Card>
           <CardBody>
             <FightForm eventId={event.id} />
@@ -212,7 +229,7 @@ export default async function EventManagePage({ params }: { params: Params }) {
         </Card>
       </Section>
 
-      <Section title="Etkinlik Bilgileri">
+      <Section title={t.eventInfo}>
         <Card>
           <CardBody>
             <EventForm

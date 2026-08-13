@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
 import { Card, CardBody, Alert } from "@/components/ui";
 import { REPORT_REASON_LABEL } from "@/lib/constants";
+import { moderationStats } from "@/lib/moderation";
+import { moderationProviders, moderationConfigured } from "@/lib/services/moderation";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { transparencyCopy } from "@/lib/i18n/pages/transparency";
 
-export const metadata: Metadata = {
-  title: "Şeffaflık Raporu",
-  description:
-    "FIGHTNET moderasyon şeffaflık raporu — bildirim sayıları, işlem süreleri ve itiraz sonuçları. DSA uyumlu.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = transparencyCopy[await getLocale()];
+  return {
+    title: copy.metaTitle,
+    description: copy.metaDescription,
+    alternates: await metadataAlternates("/seffaflik"),
+  };
+}
 
 // Rapor gün içinde birkaç kez tazelenir; canlı sayaç olması gerekmiyor
 export const revalidate = 3600;
@@ -25,7 +32,7 @@ async function loadReport() {
   const now = new Date();
   const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
 
-  const [total, byReason, byStatus, resolvedSample, appeals, appealsByStatus] = await Promise.all([
+  const [total, byReason, byStatus, resolvedSample, appeals, appealsByStatus, autoFilter] = await Promise.all([
     prisma.report.count({ where: { createdAt: { gte: yearStart } } }),
     prisma.report.groupBy({
       by: ["reason"],
@@ -50,6 +57,8 @@ async function loadReport() {
       where: { createdAt: { gte: yearStart } },
       _count: { _all: true },
     }),
+    // §11.3 — otomatik ön filtrenin bu yılki kararları
+    moderationStats(366),
   ]);
 
   const durations = resolvedSample
@@ -71,6 +80,7 @@ async function loadReport() {
     within24h,
     appeals,
     appealsByStatus: Object.fromEntries(appealsByStatus.map((s) => [s.status, s._count._all])) as Record<string, number>,
+    autoFilter,
   };
 }
 
@@ -83,54 +93,49 @@ const EMPTY = {
   within24h: null as number | null,
   appeals: 0,
   appealsByStatus: {} as Record<string, number>,
+  autoFilter: { total: 0, blocked: 0, review: 0, reviewed: 0, approved: 0 },
 };
 
 export default async function TransparencyPage() {
-  const d = await safe(loadReport, EMPTY);
+  const [d, locale] = await Promise.all([safe(loadReport, EMPTY), getLocale()]);
+  const t = transparencyCopy[locale];
+  const year = String(d.year);
 
   return (
     <>
-      <h1 className="font-display text-3xl font-black tracking-tight">Şeffaflık Raporu {d.year}</h1>
-      <p>
-        Bu sayfa Dijital Hizmetler Yasası (DSA) kapsamındaki şeffaflık yükümlülüğümüzü karşılar.
-        Rakamlar moderasyon kayıtlarımızdan otomatik üretilir ve saatlik tazelenir — elle
-        düzenlenmez. Hiçbir sayı tek bir kullanıcıya, içeriğe veya bildirimi yapan kişiye
-        geri götürülemez.
-      </p>
+      <h1 className="font-display text-3xl font-black tracking-tight">
+        {t.title.replace("{year}", year)}
+      </h1>
+      <p>{t.intro}</p>
 
-      <Alert tone="neutral" title="Beta aşaması notu">
-        Platform Beta programındadır. Bu dönemde moderasyon kurucu tarafından yürütülür ve
-        otomatik ön filtreler (görsel/video ve metin analizi) ile desteklenir. Kullanıcı sayısı
-        1.000 aylık aktif doğrulanmış üyeyi aştığında ayrı bir moderasyon ekibi kurulur.
+      <Alert tone="neutral" title={t.betaTitle}>
+        {t.betaBody}
       </Alert>
 
-      <h2>Bildirimler</h2>
+      <h2>{t.reportsHeading}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard label="Toplam bildirim" value={String(d.total)} />
-        <MetricCard label="Açık" value={String((d.byStatus.OPEN ?? 0) + (d.byStatus.IN_REVIEW ?? 0))} />
-        <MetricCard label="İşlem yapıldı" value={String(d.byStatus.RESOLVED ?? 0)} />
-        <MetricCard label="Reddedildi" value={String(d.byStatus.DISMISSED ?? 0)} />
+        <MetricCard label={t.reportsTotal} value={String(d.total)} />
+        <MetricCard label={t.reportsOpen} value={String((d.byStatus.OPEN ?? 0) + (d.byStatus.IN_REVIEW ?? 0))} />
+        <MetricCard label={t.reportsResolved} value={String(d.byStatus.RESOLVED ?? 0)} />
+        <MetricCard label={t.reportsDismissed} value={String(d.byStatus.DISMISSED ?? 0)} />
       </div>
 
-      <h2>Tepki süresi</h2>
-      <p>
-        Notice-and-Action prosedürümüz 24 saat içinde tepki verilmesini öngörür (DSA gerekliliği).
-        Aşağıdaki değerler bu yıl sonuçlandırılan bildirimlerin son 500 kaydından hesaplanır.
-      </p>
+      <h2>{t.responseHeading}</h2>
+      <p>{t.responseBody}</p>
       <div className="grid grid-cols-2 gap-3">
         <MetricCard
-          label="Ortalama tepki süresi"
-          value={d.avgHours === null ? "—" : `${d.avgHours} saat`}
+          label={t.avgResponse}
+          value={d.avgHours === null ? "—" : `${d.avgHours} ${t.hoursSuffix}`}
         />
         <MetricCard
-          label="24 saat içinde sonuçlanan"
+          label={t.within24h}
           value={d.within24h === null ? "—" : `%${d.within24h}`}
         />
       </div>
 
-      <h2>Bildirim gerekçeleri</h2>
+      <h2>{t.reasonsHeading}</h2>
       {d.byReason.length === 0 ? (
-        <p>Bu yıl henüz bildirim alınmadı.</p>
+        <p>{t.reasonsEmpty}</p>
       ) : (
         <Card>
           <ul className="divide-y divide-[var(--border)]">
@@ -144,69 +149,79 @@ export default async function TransparencyPage() {
         </Card>
       )}
 
-      <h2>İtirazlar</h2>
-      <p>
-        Moderasyon kararlarına itiraz edilebilir. İtiraz, kararı veren kişiden bağımsız olarak
-        yeniden değerlendirilir ve sonuç kullanıcıya bildirilir.
-      </p>
+      <h2>{t.appealsHeading}</h2>
+      <p>{t.appealsBody}</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCard label="Toplam itiraz" value={String(d.appeals)} />
-        <MetricCard label="İnceleniyor" value={String(d.appealsByStatus.OPEN ?? 0)} />
-        <MetricCard label="Karar korundu" value={String(d.appealsByStatus.UPHELD ?? 0)} />
-        <MetricCard label="Karar geri alındı" value={String(d.appealsByStatus.OVERTURNED ?? 0)} />
+        <MetricCard label={t.appealsTotal} value={String(d.appeals)} />
+        <MetricCard label={t.appealsOpen} value={String(d.appealsByStatus.OPEN ?? 0)} />
+        <MetricCard label={t.appealsUpheld} value={String(d.appealsByStatus.UPHELD ?? 0)} />
+        <MetricCard label={t.appealsOverturned} value={String(d.appealsByStatus.OVERTURNED ?? 0)} />
       </div>
 
-      <h2>Nasıl bildirim yaparım?</h2>
+      <h2>{t.howHeading}</h2>
       <ul>
-        <li>Her gönderi, yorum, profil, ilan ve etkinlikte bayrak simgeli bildir düğmesi vardır.</li>
+        <li>{t.howFlag}</li>
         <li>
-          Hesabın yoksa veya acil bir güvenlik durumu varsa{" "}
+          {t.howContactPre}
           <Link href="/iletisim" className="font-semibold text-blood-500 hover:underline">
-            iletişim sayfasından
-          </Link>{" "}
-          bize ulaş.
+            {t.howContactLink}
+          </Link>
+          {t.howContactPost}
         </li>
         <li>
-          Hakkında işlem yapılan içeriğin sahibiysen{" "}
+          {t.howAppealPre}
           <Link href="/panel/itirazlar" className="font-semibold text-blood-500 hover:underline">
-            panelinden itiraz edebilirsin
+            {t.howAppealLink}
           </Link>
-          .
+          {t.howAppealPost}
         </li>
       </ul>
 
-      <h2>Otomatik araçlar</h2>
+      <h2>{t.autoHeading}</h2>
+      <p>{t.autoBody1}</p>
       <p>
-        Yüklenen görsel ve videolar otomatik ön filtreden geçer; metin içeriği zararlı dil
-        tespiti için taranır. Otomatik filtre tek başına kalıcı bir karar vermez — işaretlenen
-        içerik her zaman bir insan tarafından incelenir.
+        {t.autoBody2Pre}
+        <Link href="/panel/itirazlar" className="font-semibold text-blood-500 hover:underline">
+          {t.autoBody2Link}
+        </Link>
+        {t.autoBody2Post}
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <MetricCard label={t.autoScanned} value={String(d.autoFilter.total)} />
+        <MetricCard label={t.autoApproved} value={String(d.autoFilter.approved)} />
+        <MetricCard label={t.autoReview} value={String(d.autoFilter.review)} />
+        <MetricCard label={t.autoBlocked} value={String(d.autoFilter.blocked)} />
+      </div>
+      <p className="text-sm text-muted">
+        {t.autoTools
+          .replace("{text}", moderationProviders.text)
+          .replace("{image}", moderationProviders.image)}
+        {!moderationConfigured && t.autoToolsFallback}
       </p>
 
-      <h2>İlgili belgeler</h2>
+      <h2>{t.docsHeading}</h2>
       <ul>
         <li>
           <Link href="/topluluk-kurallari" className="font-semibold text-blood-500 hover:underline">
-            Topluluk Kuralları
+            {t.docsRules}
           </Link>{" "}
-          — hangi içeriğin kaldırıldığı
+          — {t.docsRulesNote}
         </li>
         <li>
           <Link href="/gizlilik" className="font-semibold text-blood-500 hover:underline">
-            Gizlilik Açıklaması
+            {t.docsPrivacy}
           </Link>{" "}
-          — verilerin nasıl işlendiği
+          — {t.docsPrivacyNote}
         </li>
         <li>
           <Link href="/kunye" className="font-semibold text-blood-500 hover:underline">
-            Künye (Impressum)
+            {t.docsImprint}
           </Link>{" "}
-          — yasal sorumlu ve iletişim noktası
+          — {t.docsImprintNote}
         </li>
       </ul>
 
-      <p className="text-xs">
-        Son güncelleme: otomatik · Kapsam: 1 Ocak {d.year} – bugün
-      </p>
+      <p className="text-xs">{t.footerNote.replace("{year}", year)}</p>
     </>
   );
 }

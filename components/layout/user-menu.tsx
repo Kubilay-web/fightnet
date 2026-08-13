@@ -1,28 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, User, Dumbbell, Swords, CalendarCheck, BadgeCheck,
   Bell, Shield, LogOut, Settings, Sparkles,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { useLocale } from "@/components/i18n/provider";
+import { panelNavCopy, type UserMenuKey } from "@/lib/i18n/pages/panel-nav";
 import type { SessionPayload } from "@/lib/session";
 
-const ITEMS = [
-  { href: "/panel", label: "Panelim", icon: LayoutDashboard },
-  { href: "/panel/profil", label: "Profilim", icon: User },
-  { href: "/panel/antrenman", label: "Antrenman Günlüğü", icon: Dumbbell },
-  { href: "/panel/sparring", label: "Sparring", icon: Swords },
-  { href: "/panel/rezervasyonlar", label: "Rezervasyonlarım", icon: CalendarCheck },
-  { href: "/panel/dogrulama", label: "Doğrulama", icon: BadgeCheck },
-  { href: "/panel/creator", label: "Creator", icon: Sparkles },
-  { href: "/panel/bildirimler", label: "Bildirimler", icon: Bell },
-  { href: "/panel/ayarlar", label: "Ayarlar", icon: Settings },
+/** `href` kanonik (Türkçe) kalır; çeviriyi `components/i18n/link` yapar. */
+const ITEMS: { href: string; key: UserMenuKey; icon: typeof LayoutDashboard }[] = [
+  { href: "/panel", key: "panel", icon: LayoutDashboard },
+  { href: "/panel/profil", key: "profil", icon: User },
+  { href: "/panel/antrenman", key: "antrenman", icon: Dumbbell },
+  { href: "/panel/sparring", key: "sparring", icon: Swords },
+  { href: "/panel/rezervasyonlar", key: "rezervasyonlar", icon: CalendarCheck },
+  { href: "/panel/dogrulama", key: "dogrulama", icon: BadgeCheck },
+  { href: "/panel/creator", key: "creator", icon: Sparkles },
+  { href: "/panel/bildirimler", key: "bildirimler", icon: Bell },
+  { href: "/panel/ayarlar", key: "ayarlar", icon: Settings },
 ];
 
 export function UserMenu({ session, unread = 0 }: { session: SessionPayload; unread?: number }) {
+  const t = panelNavCopy[useLocale()];
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -81,7 +85,7 @@ export function UserMenu({ session, unread = 0 }: { session: SessionPayload; unr
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto p-1.5">
-            {ITEMS.map(({ href, label, icon: Icon }) => (
+            {ITEMS.map(({ href, key, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -89,7 +93,7 @@ export function UserMenu({ session, unread = 0 }: { session: SessionPayload; unr
                 className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors hover:bg-ink-100 dark:hover:bg-ink-800"
               >
                 <Icon className="size-4 text-muted" />
-                {label}
+                {t.menu[key]}
                 {href === "/panel/bildirimler" && unread > 0 && (
                   <span className="ml-auto rounded-full bg-blood-600 px-1.5 text-[10px] font-bold text-white">
                     {unread}
@@ -105,7 +109,7 @@ export function UserMenu({ session, unread = 0 }: { session: SessionPayload; unr
                 className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-bold text-gold-600 transition-colors hover:bg-gold-500/10 dark:text-gold-400"
               >
                 <Shield className="size-4" />
-                Admin Panel
+                {t.admin}
               </Link>
             )}
           </div>
@@ -116,7 +120,7 @@ export function UserMenu({ session, unread = 0 }: { session: SessionPayload; unr
               className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-blood-500 transition-colors hover:bg-blood-500/10"
             >
               <LogOut className="size-4" />
-              Çıkış Yap
+              {t.logout}
             </button>
           </div>
         </div>

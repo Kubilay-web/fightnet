@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Sparkles, Users, Euro, TrendingUp } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -8,12 +8,22 @@ import { Badge, Card, CardBody, Section, Stat, Alert, EmptyState } from "@/compo
 import { CreatorTierForm, CreatorPostForm } from "@/components/creator-forms";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { PLATFORM_FEE_RATE } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { panelCreatorCopy } from "@/lib/i18n/pages/panel-creator";
 
-export const metadata: Metadata = { title: "Creator", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelCreatorCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function CreatorPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = panelCreatorCopy[locale];
+  const tag = LOCALE_TAG[locale];
 
   const data = await safe(
     async () => {
@@ -41,11 +51,11 @@ export default async function CreatorPage() {
 
   if (user.verification === "LEVEL_0") {
     return (
-      <Section title="Creator" subtitle="Kendi abonelik sayfanı aç, hayranların seni desteklesin">
-        <Alert tone="amber" title="Doğrulama gerekli">
-          Creator sayfası açmak için en az Seviye 1 doğrulaması gerekir.{" "}
+      <Section title={copy.title} subtitle={copy.gateSubtitle}>
+        <Alert tone="amber" title={copy.gate.title}>
+          {copy.gate.body}{" "}
           <Link href="/panel/dogrulama" className="font-bold underline">
-            Doğrulamayı başlat
+            {copy.gate.link}
           </Link>
         </Alert>
       </Section>
@@ -55,23 +65,23 @@ export default async function CreatorPage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Creator"
-        subtitle={`Hayranların seni aylık abonelikle destekler. Sen %${(1 - PLATFORM_FEE_RATE) * 100} alırsın.`}
+        title={copy.title}
+        subtitle={copy.subtitle((1 - PLATFORM_FEE_RATE) * 100)}
         action={
           <Link href={`/creator/${user.username}`} className="text-sm font-bold text-blood-500 hover:underline">
-            Sayfamı gör →
+            {copy.myPage}
           </Link>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Aktif abone" value={data.subs} />
-        <Stat label="Brüt aylık" value={formatMoney(gross)} />
-        <Stat label="Platform payı" value={formatMoney(fee)} hint={`%${PLATFORM_FEE_RATE * 100}`} />
-        <Stat label="Net kazanç" value={formatMoney(gross - fee)} tone="green" />
+        <Stat label={copy.stats.subs} value={data.subs} />
+        <Stat label={copy.stats.gross} value={formatMoney(gross, "EUR", tag)} />
+        <Stat label={copy.stats.platformShare} value={formatMoney(fee, "EUR", tag)} hint={`%${PLATFORM_FEE_RATE * 100}`} />
+        <Stat label={copy.stats.net} value={formatMoney(gross - fee, "EUR", tag)} tone="green" />
       </div>
 
-      <Section title="Abonelik Kademeleri" subtitle="Bronz, Gümüş, Altın — her biri farklı ayrıcalıklar">
+      <Section title={copy.tiers.title} subtitle={copy.tiers.subtitle}>
         {data.tiers.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-3">
             {data.tiers.map((t) => (
@@ -81,7 +91,7 @@ export default async function CreatorPage() {
                     <Badge tone={t.tier === "GOLD" ? "gold" : t.tier === "SILVER" ? "neutral" : "amber"}>
                       {t.tier}
                     </Badge>
-                    <span className="text-lg font-black">{formatMoney(t.price)}</span>
+                    <span className="text-lg font-black">{formatMoney(t.price, "EUR", tag)}</span>
                   </div>
                   <h3 className="font-bold">{t.name}</h3>
                   {t.description && <p className="text-sm text-muted">{t.description}</p>}
@@ -105,12 +115,12 @@ export default async function CreatorPage() {
         </Card>
       </Section>
 
-      <Section title="Özel İçerik" subtitle="Sadece abonelerinin göreceği içerikler">
+      <Section title={copy.content.title} subtitle={copy.content.subtitle}>
         {data.posts.length === 0 ? (
           <EmptyState
             icon={<Sparkles className="size-8" />}
-            title="Henüz içerik yok"
-            description="Antrenman videoları, kulis anları, dövüş öncesi vlog'lar paylaş."
+            title={copy.content.empty.title}
+            description={copy.content.empty.description}
           />
         ) : (
           <Card>
@@ -119,7 +129,7 @@ export default async function CreatorPage() {
                 <li key={p.id} className="flex items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold">{p.title}</p>
-                    <p className="text-xs text-muted">{formatDate(p.createdAt)}</p>
+                    <p className="text-xs text-muted">{formatDate(p.createdAt, tag)}</p>
                   </div>
                   <Badge tone={p.minTier === "GOLD" ? "gold" : "neutral"}>{p.minTier}+</Badge>
                 </li>
@@ -135,9 +145,8 @@ export default async function CreatorPage() {
         </Card>
       </Section>
 
-      <Alert tone="neutral" title="İçerik politikası">
-        Cinsel içerik, doping ihlali ve aşırı kilo düşürme talimatı içeren içerikler yasaktır.
-        İhlal durumunda Creator sayfası kapatılır.
+      <Alert tone="neutral" title={copy.policy.title}>
+        {copy.policy.body}
       </Alert>
     </div>
   );

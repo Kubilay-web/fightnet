@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { BadgeCheck, ExternalLink } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -11,13 +11,24 @@ import { ReviewActions } from "@/components/admin-review-actions";
 import { reviewVerification } from "@/app/admin/actions";
 import { cld } from "@/lib/image";
 import { formatDateTime, age } from "@/lib/utils";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { VERIFICATION_LABEL, ROLE_LABEL } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { adminCoreCopy } from "@/lib/i18n/pages/admin-core";
 
-export const metadata: Metadata = { title: "Doğrulama Kuyruğu", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminCoreCopy[await getLocale()].verification;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminVerificationPage() {
   await requireAdmin();
+  const locale = await getLocale();
+  const c = adminCoreCopy[locale].verification;
+  const tag = LOCALE_TAG[locale];
 
   const requests = await safe(
     () =>
@@ -44,15 +55,15 @@ export default async function AdminVerificationPage() {
   return (
     <div className="flex flex-col gap-6">
       <Section
-        title="Doğrulama Kuyruğu"
-        subtitle={`${requests.length} bekleyen talep — Seviye 1 (KYC) ve Seviye 2 (durum)`}
+        title={c.title}
+        subtitle={c.subtitle(requests.length)}
       />
 
       {requests.length === 0 ? (
         <EmptyState
           icon={<BadgeCheck className="size-10" />}
-          title="Kuyruk temiz"
-          description="Bekleyen doğrulama talebi yok."
+          title={c.empty.title}
+          description={c.empty.description}
         />
       ) : (
         <div className="flex flex-col gap-4">
@@ -67,15 +78,15 @@ export default async function AdminVerificationPage() {
                         {r.user.name}
                       </Link>
                       <VerifiedMark level={r.user.verification} />
-                      {r.user.isMinor && <Badge tone="red">18 yaş altı</Badge>}
+                      {r.user.isMinor && <Badge tone="red">{c.minor}</Badge>}
                     </div>
                     <p className="text-xs text-muted">
                       @{r.user.username} · {r.user.email} · {r.user.city ?? "—"}, {r.user.country}
                     </p>
                     <p className="text-xs text-muted">
-                      {age(r.user.birthDate) ? `${age(r.user.birthDate)} yaş · ` : ""}
-                      {r.user._count.sportProfiles} disiplin · {r.user._count.trainingLogs} antrenman ·
-                      Üyelik: {formatDateTime(r.user.createdAt)}
+                      {age(r.user.birthDate) ? `${c.years(age(r.user.birthDate)!)} · ` : ""}
+                      {c.disciplines(r.user._count.sportProfiles)} · {c.trainings(r.user._count.trainingLogs)} ·{" "}
+                      {c.memberSince(formatDateTime(r.user.createdAt, tag))}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -83,22 +94,22 @@ export default async function AdminVerificationPage() {
                       {VERIFICATION_LABEL[r.targetLevel]}
                     </Badge>
                     {r.claimedRole && <Badge>{ROLE_LABEL[r.claimedRole]}</Badge>}
-                    <span className="text-[11px] text-muted">{formatDateTime(r.createdAt)}</span>
+                    <span className="text-[11px] text-muted">{formatDateTime(r.createdAt, tag)}</span>
                   </div>
                 </div>
 
                 {r.note && (
                   <p className="rounded-xl bg-[var(--bg-subtle)] p-3 text-sm">
-                    <b className="text-xs uppercase text-muted">Kullanıcı notu:</b> {r.note}
+                    <b className="text-xs uppercase text-muted">{c.userNote}</b> {r.note}
                   </p>
                 )}
 
                 {/* Belgeler */}
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {r.idDocUrl && <DocPreview url={r.idDocUrl} label="Kimlik Belgesi" />}
-                  {r.selfieUrl && <DocPreview url={r.selfieUrl} label="Selfie" />}
+                  {r.idDocUrl && <DocPreview url={r.idDocUrl} label={c.idDoc} />}
+                  {r.selfieUrl && <DocPreview url={r.selfieUrl} label={c.selfie} />}
                   {r.proofUrls.map((u, i) => (
-                    <DocPreview key={u} url={u} label={`Kanıt ${i + 1}`} />
+                    <DocPreview key={u} url={u} label={c.proof(i + 1)} />
                   ))}
                 </div>
 

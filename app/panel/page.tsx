@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import {
   Flame, Dumbbell, Users, Swords, Bell, BadgeCheck, TrendingUp,
   CalendarCheck, ArrowRight, Sparkles,
@@ -11,13 +11,23 @@ import { Avatar, VerifiedMark, FounderMark } from "@/components/ui/avatar";
 import { Badge, Card, CardBody, ButtonLink, Section, Stat, EmptyState, Alert } from "@/components/ui";
 import { GuardianNotice } from "@/components/guardian-notice";
 import { compact, formatDate, timeAgo, cn } from "@/lib/utils";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { DISCIPLINE_LABEL, VERIFICATION_LABEL, BOOKING_STATUS_LABEL } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { panelHomeCopy } from "@/lib/i18n/pages/panel-home";
 
-export const metadata: Metadata = { title: "Panelim", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelHomeCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function PanelHome() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const t = panelHomeCopy[locale];
 
   const data = await safe(
     async () => {
@@ -81,7 +91,7 @@ export default async function PanelHome() {
     },
   );
 
-  const nextStep = getNextStep(user, data);
+  const nextStep = getNextStep(user, data, t);
 
   return (
     <div className="flex flex-col gap-6">
@@ -90,16 +100,18 @@ export default async function PanelHome() {
         <Avatar src={user.avatarUrl} name={user.name} size="xl" priority />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-black sm:text-3xl">Merhaba, {user.name.split(" ")[0]}</h1>
+            <h1 className="font-display text-2xl font-black sm:text-3xl">
+              {t.greeting} {user.name.split(" ")[0]}
+            </h1>
             <VerifiedMark level={user.verification} />
             {user.isFounder && <FounderMark />}
           </div>
           <p className="text-sm text-muted">
-            {VERIFICATION_LABEL[user.verification]} · Profil %{user.profileScore} tamamlandı
+            {VERIFICATION_LABEL[user.verification]} · {t.profileComplete(user.profileScore)}
           </p>
         </div>
         <ButtonLink href={`/dovuscular/${user.slug}`} variant="outline" size="sm">
-          Profilimi Gör
+          {t.viewProfile}
         </ButtonLink>
       </div>
 
@@ -108,8 +120,8 @@ export default async function PanelHome() {
         <Card>
           <CardBody className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-bold">Profilini tamamla</p>
-              <span className="text-sm font-black tabular-nums">%{user.profileScore}</span>
+              <p className="text-sm font-bold">{t.completion.title}</p>
+              <span className="text-sm font-black tabular-nums">{t.completion.percent(user.profileScore)}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-ink-200 dark:bg-ink-800">
               <div
@@ -130,15 +142,15 @@ export default async function PanelHome() {
 
       {/* Doğrulama durumu */}
       {user.verification === "LEVEL_0" && (
-        <Alert tone="blue" title="Doğrulamanı tamamla">
-          Sparring araması ve canlı yorum, Seviye 1 (kimlik doğrulanmış) üyelere açıktır.
+        <Alert tone="blue" title={t.verifyAlert.title}>
+          {t.verifyAlert.body}
           {data.verificationReq?.status === "PENDING" ? (
-            <> Talebin inceleniyor.</>
+            <>{t.verifyAlert.pending}</>
           ) : (
             <>
               {" "}
               <Link href="/panel/dogrulama" className="font-bold underline">
-                Hemen başlat
+                {t.verifyAlert.start}
               </Link>
             </>
           )}
@@ -147,56 +159,57 @@ export default async function PanelHome() {
 
       {/* Sayaçlar */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Streak" value={`${user.trainingStreak}`} hint="art arda gün" tone="red" />
-        <Stat label="Bu hafta" value={data.trainingsThisWeek} hint={`${data.weekMinutes} dakika`} />
-        <Stat label="Takipçi" value={compact(user.followerCount)} />
-        <Stat label="Bekleyen" value={data.pendingRequests} hint="sparring talebi" tone={data.pendingRequests ? "amber" : "neutral"} />
+        <Stat label={t.stats.streak} value={`${user.trainingStreak}`} hint={t.stats.streakHint} tone="red" />
+        <Stat label={t.stats.week} value={data.trainingsThisWeek} hint={t.stats.weekHint(data.weekMinutes)} />
+        <Stat label={t.stats.followers} value={compact(user.followerCount)} />
+        <Stat label={t.stats.pending} value={data.pendingRequests} hint={t.stats.pendingHint} tone={data.pendingRequests ? "amber" : "neutral"} />
       </div>
 
       {/* Hızlı işlemler */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <QuickAction href="/panel/antrenman/yeni" icon={Dumbbell} label="Antrenman Ekle" />
-        <QuickAction href="/panel/sparring/yeni" icon={Swords} label="Sparring İlanı" />
-        <QuickAction href="/panel/gonderi/yeni" icon={Sparkles} label="Gönderi Paylaş" />
-        <QuickAction href="/salonlar" icon={CalendarCheck} label="Salon Bul" />
+        <QuickAction href="/panel/antrenman/yeni" icon={Dumbbell} label={t.quick.training} />
+        <QuickAction href="/panel/sparring/yeni" icon={Swords} label={t.quick.sparring} />
+        <QuickAction href="/panel/gonderi/yeni" icon={Sparkles} label={t.quick.post} />
+        <QuickAction href="/salonlar" icon={CalendarCheck} label={t.quick.gym} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Son antrenmanlar */}
         <Section
-          title="Son Antrenmanlar"
+          title={t.trainings.title}
           action={
             <ButtonLink href="/panel/antrenman" variant="ghost" size="sm">
-              Tümü <ArrowRight className="size-4" />
+              {t.trainings.all} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
           {data.recentTrainings.length === 0 ? (
             <EmptyState
               icon={<Dumbbell className="size-8" />}
-              title="Henüz kayıt yok"
-              description="İlk antrenmanını kaydet, streak sayacını başlat."
+              title={t.trainings.emptyTitle}
+              description={t.trainings.emptyBody}
               action={
                 <ButtonLink href="/panel/antrenman/yeni" size="sm" className="mt-2">
-                  Antrenman Ekle
+                  {t.trainings.emptyCta}
                 </ButtonLink>
               }
             />
           ) : (
             <Card>
               <ul className="divide-y divide-[var(--border)]">
-                {data.recentTrainings.map((t) => (
-                  <li key={t.id} className="flex items-center gap-3 p-3">
+                {data.recentTrainings.map((log) => (
+                  <li key={log.id} className="flex items-center gap-3 p-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blood-600/10 text-blood-500">
                       <Dumbbell className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold">
-                        {DISCIPLINE_LABEL[t.discipline]}
-                        {t.type ? ` · ${t.type}` : ""}
+                        {DISCIPLINE_LABEL[log.discipline]}
+                        {log.type ? ` · ${log.type}` : ""}
                       </p>
                       <p className="text-xs text-muted">
-                        {formatDate(t.date)} · {t.durationMin} dk · Yoğunluk {t.intensity}/5
+                        {formatDate(log.date, LOCALE_TAG[locale])} · {log.durationMin} {t.trainings.minutesShort} ·{" "}
+                        {t.trainings.intensity} {log.intensity}/5
                       </p>
                     </div>
                   </li>
@@ -208,21 +221,21 @@ export default async function PanelHome() {
 
         {/* Yaklaşan rezervasyonlar */}
         <Section
-          title="Yaklaşan Rezervasyonlar"
+          title={t.bookings.title}
           action={
             <ButtonLink href="/panel/rezervasyonlar" variant="ghost" size="sm">
-              Tümü <ArrowRight className="size-4" />
+              {t.bookings.all} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
           {data.upcomingBookings.length === 0 ? (
             <EmptyState
               icon={<CalendarCheck className="size-8" />}
-              title="Rezervasyon yok"
-              description="Bölgendeki salonlarda deneme antrenmanı ayarla."
+              title={t.bookings.emptyTitle}
+              description={t.bookings.emptyBody}
               action={
                 <ButtonLink href="/salonlar" size="sm" className="mt-2">
-                  Salon Bul
+                  {t.bookings.emptyCta}
                 </ButtonLink>
               }
             />
@@ -236,7 +249,7 @@ export default async function PanelHome() {
                         {b.gym.name}
                       </Link>
                       <p className="text-xs text-muted">
-                        {formatDate(b.date)} · {b.gym.city}
+                        {formatDate(b.date, LOCALE_TAG[locale])} · {b.gym.city}
                       </p>
                     </div>
                     <Badge tone={b.status === "CONFIRMED" ? "green" : "amber"}>
@@ -253,10 +266,10 @@ export default async function PanelHome() {
       {/* Disiplinler */}
       {data.sportProfiles.length > 0 && (
         <Section
-          title="Disiplinlerim"
+          title={t.disciplines.title}
           action={
             <ButtonLink href="/panel/profil" variant="ghost" size="sm">
-              Düzenle <ArrowRight className="size-4" />
+              {t.disciplines.edit} <ArrowRight className="size-4" />
             </ButtonLink>
           }
         >
@@ -268,7 +281,7 @@ export default async function PanelHome() {
                   <p className="mt-1 text-2xl font-black tabular-nums">
                     {sp.wins}-{sp.losses}-{sp.draws}
                   </p>
-                  <p className="text-xs text-muted">Galibiyet – Mağlubiyet – Berabere</p>
+                  <p className="text-xs text-muted">{t.disciplines.recordLegend}</p>
                 </CardBody>
               </Card>
             ))}
@@ -304,10 +317,11 @@ function QuickAction({
 function getNextStep(
   user: { avatarUrl: string | null; bio: string | null; city: string | null },
   data: { sportProfiles: unknown[] },
+  t: (typeof panelHomeCopy)[keyof typeof panelHomeCopy],
 ): { text: string; href: string; cta: string } {
-  if (!user.avatarUrl) return { text: "Profil fotoğrafı ekle — profiller 3 kat daha fazla görüntülenir.", href: "/panel/profil", cta: "Fotoğraf Ekle" };
-  if (!data.sportProfiles.length) return { text: "Disiplin ekle — hangi sporları yapıyorsun?", href: "/panel/profil", cta: "Disiplin Ekle" };
-  if (!user.bio) return { text: "Kısa bir biyografi yaz — sponsorlar ve antrenörler seni tanısın.", href: "/panel/profil", cta: "Bio Yaz" };
-  if (!user.city) return { text: "Şehrini ekle — bölgendeki sparring partnerleri seni bulsun.", href: "/panel/profil", cta: "Şehir Ekle" };
-  return { text: "Doğrulamanı tamamla ve tüm özelliklerin kilidini aç.", href: "/panel/dogrulama", cta: "Doğrula" };
+  if (!user.avatarUrl) return { ...t.nextStep.avatar, href: "/panel/profil" };
+  if (!data.sportProfiles.length) return { ...t.nextStep.sport, href: "/panel/profil" };
+  if (!user.bio) return { ...t.nextStep.bio, href: "/panel/profil" };
+  if (!user.city) return { ...t.nextStep.city, href: "/panel/profil" };
+  return { ...t.nextStep.verify, href: "/panel/dogrulama" };
 }

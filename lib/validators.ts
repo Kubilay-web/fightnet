@@ -338,7 +338,7 @@ export const threadSchema = z.object({
 });
 
 export const reportSchema = z.object({
-  targetType: z.enum(["POST", "COMMENT", "USER", "THREAD", "FORUM_POST", "MESSAGE", "GYM", "EVENT"]),
+  targetType: z.enum(["POST", "COMMENT", "USER", "THREAD", "FORUM_POST", "MESSAGE", "GYM", "EVENT", "PRODUCT", "COACHING_OFFER"]),
   targetId: z.string().min(1),
   reportedUserId: z.string().optional().or(z.literal("")),
   reason: z.enum([
@@ -475,6 +475,136 @@ export const adminUserSchema = z.object({
   isBanned: z.coerce.boolean(),
   isFounder: z.coerce.boolean(),
   banReason: z.string().max(300).optional().or(z.literal("")),
+});
+
+// ---------------------------------------------------------------------------
+// §4.3 — Online koçluk
+// ---------------------------------------------------------------------------
+
+export const coachingOfferSchema = z.object({
+  title: z.string().trim().min(5, "En az 5 karakter").max(120),
+  description: z.string().trim().min(30, "En az 30 karakter").max(3000),
+  format: z.enum(["VIDEO_CALL", "ASYNC_REVIEW", "TRAINING_PLAN", "CHAT"]).default("VIDEO_CALL"),
+  disciplines: z.array(disciplineEnum).min(1, "En az bir disiplin seçin").max(6),
+  level: levelEnum.optional().or(z.literal("")),
+  price: z.coerce.number().min(5, "En az 5 €").max(1000),
+  durationMin: z.coerce.number().int().min(15).max(240).default(60),
+  capacity: z.coerce.number().int().min(1).max(200).default(10),
+  coverUrl: z.string().url().optional().or(z.literal("")),
+  coverId: z.string().optional().or(z.literal("")),
+  minorsAllowed: z.coerce.boolean().default(false),
+  isActive: z.coerce.boolean().default(true),
+});
+
+export const coachingRequestSchema = z.object({
+  offerId: z.string().min(1),
+  note: z.string().trim().max(1000).optional().or(z.literal("")),
+  /** ISO tarih-saat; VIDEO_CALL dışındaki formatlarda boş bırakılabilir */
+  preferredAt: z.string().optional().or(z.literal("")),
+});
+
+export const coachingScheduleSchema = z.object({
+  sessionId: z.string().min(1),
+  scheduledAt: z.string().min(1, "Tarih seçin"),
+  meetingUrl: z.string().url("Geçerli bir toplantı bağlantısı girin"),
+});
+
+export const coachingCompleteSchema = z.object({
+  sessionId: z.string().min(1),
+  coachNote: z.string().trim().max(3000).optional().or(z.literal("")),
+});
+
+export const coachingReviewSchema = z.object({
+  sessionId: z.string().min(1),
+  rating: z.coerce.number().int().min(1).max(5),
+  review: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
+// ---------------------------------------------------------------------------
+// §4.4 — Canlı yayın / PPV
+// ---------------------------------------------------------------------------
+
+export const streamSetupSchema = z.object({
+  eventId: z.string().min(1),
+  /** IVS kanalı aç veya harici HLS/DASH adresi kullan */
+  mode: z.enum(["IVS", "EXTERNAL"]).default("IVS"),
+  externalUrl: z.string().url().optional().or(z.literal("")),
+});
+
+// ---------------------------------------------------------------------------
+// §4.4 — B2B veri lisansı
+// ---------------------------------------------------------------------------
+
+export const DATA_LICENSE_SCOPES = ["events", "fights", "gyms", "athletes_public"] as const;
+
+export const dataLicenseSchema = z.object({
+  organization: z.string().trim().min(2).max(120),
+  contactName: z.string().trim().min(2).max(80),
+  contactEmail: z.string().trim().toLowerCase().email("Geçerli bir e-posta girin"),
+  vatId: z.string().trim().max(40).optional().or(z.literal("")),
+  country: z.string().trim().length(2).default("DE"),
+  scopes: z.array(z.enum(DATA_LICENSE_SCOPES)).min(1, "En az bir veri kümesi seçin"),
+  useCase: z.string().trim().min(30, "Kullanım amacını en az 30 karakterle açıklayın").max(2000),
+});
+
+export const dataLicenseReviewSchema = z.object({
+  licenseId: z.string().min(1),
+  decision: z.enum(["APPROVE", "REJECT", "SUSPEND"]),
+  annualFee: z.coerce.number().min(0).max(100000).default(0),
+  rateLimit: z.coerce.number().int().min(10).max(6000).default(60),
+  reviewNote: z.string().trim().max(1000).optional().or(z.literal("")),
+});
+
+// ---------------------------------------------------------------------------
+// §4.6 — Salon sözleşme yönetimi
+// ---------------------------------------------------------------------------
+
+export const gymContractSchema = z.object({
+  gymId: z.string().min(1),
+  memberEmail: z.string().trim().toLowerCase().email("Üyenin e-postası gerekli"),
+  planName: z.string().trim().min(2).max(80),
+  monthlyFee: z.coerce.number().min(1).max(1000),
+  termMonths: z.coerce.number().int().min(1).max(24),
+  noticeDays: z.coerce.number().int().min(0).max(90).default(30),
+  startsAt: z.string().min(1, "Başlangıç tarihi gerekli"),
+});
+
+export const sepaMandateSchema = z.object({
+  contractId: z.string().min(1),
+  debtorName: z.string().trim().min(2).max(70),
+  iban: z.string().trim().min(15).max(42),
+  bic: z.string().trim().max(11).optional().or(z.literal("")),
+  /** Kullanıcı mandatı ve sözleşmeyi açıkça onaylamalı (eIDAS FES) */
+  consent: z.literal("on", { message: "Sözleşmeyi ve SEPA mandatını onaylamalısın" }),
+});
+
+// ---------------------------------------------------------------------------
+// §4.4 — Donanım entegrasyonu
+// ---------------------------------------------------------------------------
+
+export const deviceConnectSchema = z.object({
+  provider: z.enum(["APPLE_HEALTH", "GOOGLE_HEALTH", "GARMIN", "POLAR"]),
+  deviceName: z.string().trim().max(80).optional().or(z.literal("")),
+  /** §5.7 — sağlık verisi için ayrı ve açık izin */
+  consent: z.literal("on", { message: "Sağlık verisi izni olmadan bağlantı kurulamaz" }),
+});
+
+export const healthIngestSchema = z.object({
+  samples: z
+    .array(
+      z.object({
+        externalId: z.string().min(1).max(120),
+        startedAt: z.string().min(1),
+        durationMin: z.coerce.number().int().min(1).max(1440),
+        activityType: z.string().max(60).optional().or(z.literal("")),
+        calories: z.coerce.number().int().min(0).max(20000).optional(),
+        avgHeartRate: z.coerce.number().int().min(20).max(260).optional(),
+        maxHeartRate: z.coerce.number().int().min(20).max(260).optional(),
+        distanceMeters: z.coerce.number().int().min(0).max(500000).optional(),
+      }),
+    )
+    .min(1)
+    .max(100),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

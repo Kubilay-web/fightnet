@@ -7,13 +7,19 @@ import { safe, userCardSelect } from "@/lib/queries";
 import { FighterCard } from "@/components/cards";
 import { EmptyState, Pagination, Skeleton, Section } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
-import { DISCIPLINES, SKILL_LEVELS, PAGE_SIZE } from "@/lib/constants";
+import { PAGE_SIZE } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { disciplineOptions, skillOptions } from "@/lib/i18n/labels";
+import { fightersCopy } from "@/lib/i18n/pages/fighters";
 
-export const metadata: Metadata = {
-  title: "Dövüşçüler",
-  description:
-    "DACH bölgesindeki doğrulanmış dövüşçü profillerini keşfet. Disiplin, seviye, şehir ve kilo sınıfına göre filtrele.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = fightersCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/dovuscular"),
+  };
+}
 
 export const revalidate = 120;
 
@@ -21,12 +27,14 @@ type SP = Promise<Record<string, string | undefined>>;
 
 export default async function FightersPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
+  const locale = await getLocale();
+  const c = fightersCopy[locale].list;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Dövüşçüler"
-        subtitle="Amatörden profesyonele — doğrulanmış profiller"
+        title={c.title}
+        subtitle={c.subtitle}
       >
         <FilterBar
           basePath="/dovuscular"
@@ -34,34 +42,34 @@ export default async function FightersPage({ searchParams }: { searchParams: SP 
           filters={[
             {
               key: "discipline",
-              label: "Disiplin",
-              options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })),
+              label: c.filterDiscipline,
+              options: disciplineOptions(locale),
             },
             {
               key: "level",
-              label: "Seviye",
-              options: SKILL_LEVELS.map((l) => ({ value: l.value, label: l.label })),
+              label: c.filterLevel,
+              options: skillOptions(locale),
             },
             {
               key: "verified",
-              label: "Doğrulama",
+              label: c.filterVerification,
               options: [
-                { value: "1", label: "Kimlik doğrulanmış" },
-                { value: "2", label: "Durum doğrulanmış" },
+                { value: "1", label: c.verifiedIdentity },
+                { value: "2", label: c.verifiedStatus },
               ],
             },
             {
               key: "sort",
-              label: "Sıralama",
+              label: c.filterSort,
               options: [
-                { value: "followers", label: "En popüler" },
-                { value: "new", label: "En yeni" },
-                { value: "record", label: "En çok galibiyet" },
+                { value: "followers", label: c.sortPopular },
+                { value: "new", label: c.sortNew },
+                { value: "record", label: c.sortWins },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="İsim veya kullanıcı adı ara…"
+          searchPlaceholder={c.searchPlaceholder}
         />
 
         <Suspense key={JSON.stringify(sp)} fallback={<GridSkeleton />}>
@@ -73,6 +81,7 @@ export default async function FightersPage({ searchParams }: { searchParams: SP 
 }
 
 async function FighterResults({ sp }: { sp: Record<string, string | undefined> }) {
+  const c = fightersCopy[await getLocale()].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const q = sp.q?.trim();
 
@@ -126,15 +135,15 @@ async function FighterResults({ sp }: { sp: Record<string, string | undefined> }
     return (
       <EmptyState
         icon={<Users className="size-10" />}
-        title="Dövüşçü bulunamadı"
-        description="Filtreleri değiştirerek tekrar dene ya da ilk sen kaydol."
+        title={c.emptyTitle}
+        description={c.emptyBody}
       />
     );
   }
 
   return (
     <>
-      <p className="text-sm text-muted">{total} dövüşçü bulundu</p>
+      <p className="text-sm text-muted">{c.resultCount.replace("{count}", String(total))}</p>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {fighters.map((f, i) => (
           <FighterCard key={f.id} f={f} priority={i < 4} />

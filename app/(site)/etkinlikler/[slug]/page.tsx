@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { MapPin, Clock, Ticket, Radio, Building2, ExternalLink } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -9,10 +9,14 @@ import { getSession } from "@/lib/auth";
 import { Badge, Card, CardBody, LiveBadge, Section, ButtonLink } from "@/components/ui";
 import { FightCardList } from "@/components/fight-card";
 import { LiveFeed } from "@/components/live-feed";
+import { LiveStream } from "@/components/live-stream";
 import { EventRegistration } from "@/components/event-registration";
 import { cld } from "@/lib/image";
 import { formatDateTime, formatTime } from "@/lib/utils";
-import { DISCIPLINE_LABEL, EVENT_TYPE_LABEL } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { labelsFor, type EventTypeKey } from "@/lib/i18n/labels";
+import { eventsCopy } from "@/lib/i18n/pages/events";
 
 type Params = Promise<{ slug: string }>;
 
@@ -31,6 +35,7 @@ async function loadEvent(slug: string) {
           venueName: true, street: true, city: true, postalCode: true, country: true, lat: true, lng: true,
           ticketUrl: true, ticketPrice: true, capacity: true, streamUrl: true, isPPV: true, ppvPrice: true,
           registrationOpen: true, registrationDeadline: true, viewCount: true,
+          streamChannel: { select: { id: true, status: true, provider: true } },
           organizer: { select: { id: true, name: true, slug: true, avatarUrl: true, verification: true } },
           gym: { select: { slug: true, name: true, city: true, logoUrl: true } },
           fights: {
@@ -54,22 +59,30 @@ async function loadEvent(slug: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const e = await loadEvent(slug);
-  if (!e) return { title: "Etkinlik bulunamadı" };
+  const [e, locale] = await Promise.all([loadEvent(slug), getLocale()]);
+  const c = eventsCopy[locale].detail;
+  const alternates = await metadataAlternates(`/etkinlikler/${slug}`);
+  if (!e) return { title: c.notFound, alternates };
   return {
     title: e.title,
     description:
       e.description?.slice(0, 155) ??
-      `${e.title} — ${formatDateTime(e.startsAt)}, ${e.city}. Canlı skor ve dövüş kartı FIGHTNET'te.`,
+      c.metaDescription
+        .replace("{title}", e.title)
+        .replace("{date}", formatDateTime(e.startsAt, LOCALE_TAG[locale]))
+        .replace("{city}", e.city),
+    alternates,
     openGraph: { images: e.posterUrl ? [{ url: cld(e.posterUrl, { w: 1200, h: 630 }) }] : undefined },
   };
 }
 
 export default async function EventPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const [e, session] = await Promise.all([loadEvent(slug), getSession()]);
+  const [e, session, locale] = await Promise.all([loadEvent(slug), getSession(), getLocale()]);
   if (!e) notFound();
 
+  const c = eventsCopy[locale].detail;
+  const L = labelsFor(locale);
   const isLive = e.status === "LIVE";
   const canModerate =
     !!session && (session.sub === e.organizer.id || session.role === "ADMIN" || session.role === "MODERATOR");
@@ -116,10 +129,10 @@ export default async function EventPage({ params }: { params: Params }) {
 
           <div className="flex flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              {isLive ? <LiveBadge /> : <Badge tone="red">{EVENT_TYPE_LABEL[e.type]}</Badge>}
+              {isLive ? <LiveBadge /> : <Badge tone="red">{L.eventType[e.type as EventTypeKey]}</Badge>}
               {e.isPPV && <Badge tone="purple">PPV{e.ppvPrice ? ` · ${e.ppvPrice} €` : ""}</Badge>}
               {e.disciplines.map((d) => (
-                <Badge key={d}>{DISCIPLINE_LABEL[d]}</Badge>
+                <Badge key={d}>{L.discipline[d]}</Badge>
               ))}
             </div>
 
@@ -128,8 +141,8 @@ export default async function EventPage({ params }: { params: Params }) {
             <div className="flex flex-col gap-1.5 text-sm">
               <span className="flex items-center gap-2">
                 <Clock className="size-4 shrink-0 text-blood-500" />
-                {formatDateTime(e.startsAt)}
-                {e.doorsAt && ` · Kapı açılış ${formatTime(e.doorsAt)}`}
+                {formatDateTime(e.startsAt, LOCALE_TAG[locale])}
+                {e.doorsAt && ` · ${c.doorsAt.replace("{time}", formatTime(e.doorsAt, LOCALE_TAG[locale]))}`}
               </span>
               <span className="flex items-center gap-2">
                 <MapPin className="size-4 shrink-0 text-blood-500" />
@@ -138,7 +151,7 @@ export default async function EventPage({ params }: { params: Params }) {
               {e.capacity && (
                 <span className="flex items-center gap-2 text-muted">
                   <Ticket className="size-4 shrink-0" />
-                  Kapasite: {e.capacity}
+                  {c.capacity}: {e.capacity}
                 </span>
               )}
             </div>
@@ -146,12 +159,14 @@ export default async function EventPage({ params }: { params: Params }) {
             <div className="mt-2 flex flex-wrap gap-2">
               {e.ticketUrl && (
                 <ButtonLink href={e.ticketUrl} target="_blank" rel="noopener">
-                  <Ticket className="size-4" /> Bilet Al
+                  <Ticket className="size-4" /> {c.buyTicket}
                 </ButtonLink>
               )}
-              {e.streamUrl && (
+              {/* Kanal bağlıysa yayın sayfa içinde oynatılır; yalnızca kanal
+                  yokken organizatörün girdiği harici adres gösterilir. */}
+              {!e.streamChannel && e.streamUrl && (
                 <ButtonLink href={e.streamUrl} target="_blank" rel="noopener" variant="outline">
-                  <Radio className="size-4" /> Canlı Yayın
+                  <Radio className="size-4" /> {c.liveStream}
                 </ButtonLink>
               )}
               {e.lat && e.lng && (
@@ -161,14 +176,14 @@ export default async function EventPage({ params }: { params: Params }) {
                   rel="noopener"
                   variant="ghost"
                 >
-                  <ExternalLink className="size-4" /> Yol tarifi
+                  <ExternalLink className="size-4" /> {c.directions}
                 </ButtonLink>
               )}
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted">
               <Link href={`/dovuscular/${e.organizer.slug}`} className="hover:text-blood-500">
-                Organizatör: <b>{e.organizer.name}</b>
+                {c.organizer}: <b>{e.organizer.name}</b>
               </Link>
               {e.gym && (
                 <Link href={`/salonlar/${e.gym.slug}`} className="flex items-center gap-1 hover:text-blood-500">
@@ -182,6 +197,19 @@ export default async function EventPage({ params }: { params: Params }) {
 
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 pb-16 sm:px-6 lg:grid-cols-[1fr_380px]">
         <div className="flex flex-col gap-6">
+          {/* §4.4 — Canlı yayın / PPV. Oynatma adresi sunucudan, satın alma
+              doğrulandıktan sonra alınır; HTML'e hiç gömülmez. */}
+          {e.streamChannel && (
+            <Section title={e.isPPV ? c.streamPpvTitle : c.streamTitle}>
+              <LiveStream
+                eventId={e.id}
+                eventTitle={e.title}
+                isPPV={e.isPPV}
+                ppvPrice={e.ppvPrice}
+              />
+            </Section>
+          )}
+
           {e.description && (
             <Card>
               <CardBody>
@@ -190,7 +218,7 @@ export default async function EventPage({ params }: { params: Params }) {
             </Card>
           )}
 
-          <Section title="Dövüş Kartı" subtitle={`${e.fights.length} müsabaka`}>
+          <Section title={c.fightCard} subtitle={c.fightCount.replace("{count}", String(e.fights.length))}>
             <FightCardList fights={e.fights} />
           </Section>
 
@@ -198,8 +226,8 @@ export default async function EventPage({ params }: { params: Params }) {
           {registrationOpen && (
             <Section
               id="kayit"
-              title="Müsabaka Kaydı"
-              subtitle="Bu etkinliğe sporcu olarak kaydol"
+              title={c.registrationTitle}
+              subtitle={c.registrationSubtitle}
             >
               <Card>
                 <CardBody>
@@ -212,11 +240,9 @@ export default async function EventPage({ params }: { params: Params }) {
                     />
                   ) : (
                     <div className="flex flex-col items-start gap-3">
-                      <p className="text-sm text-muted">
-                        Müsabaka kaydı için giriş yapman ve Seviye 1 doğrulaman gerekiyor.
-                      </p>
+                      <p className="text-sm text-muted">{c.registrationLoginBody}</p>
                       <ButtonLink href={`/giris?next=/etkinlikler/${e.slug}`} size="sm">
-                        Giriş yap
+                        {c.login}
                       </ButtonLink>
                     </div>
                   )}

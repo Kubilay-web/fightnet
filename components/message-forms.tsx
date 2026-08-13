@@ -4,11 +4,14 @@ import { useActionState, useEffect, useRef } from "react";
 import { Loader2, Send, MessageSquare } from "lucide-react";
 import { sendMessage, startConversation } from "@/app/panel/mesajlar/actions";
 import { Button, Textarea, Alert } from "@/components/ui";
+import { useLocale } from "@/components/i18n/provider";
+import { panelMessagesCopy } from "@/lib/i18n/pages/panel-messages";
 
 import type { ActionState } from "@/app/panel/actions";
 
 /** Sohbet içi mesaj kutusu — gönderimden sonra kendini temizler */
 export function MessageComposer({ conversationId }: { conversationId: string }) {
+  const t = panelMessagesCopy[useLocale()].composer;
   const bound = sendMessage.bind(null, conversationId);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(bound, {});
   const formRef = useRef<HTMLFormElement>(null);
@@ -26,18 +29,18 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
           rows={2}
           maxLength={2000}
           required
-          placeholder="Mesajını yaz…"
+          placeholder={t.placeholder}
           className="min-h-11"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
           }}
         />
-        <Button type="submit" size="icon" disabled={pending} aria-label="Gönder">
+        <Button type="submit" size="icon" disabled={pending} aria-label={t.sendAria}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         </Button>
       </div>
       <p className="text-[11px] text-muted">
-        ⌘/Ctrl + Enter ile gönder · Rahatsız edici mesajları bildirebilirsin
+        {t.hint}
       </p>
     </form>
   );
@@ -48,6 +51,7 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
  * Engel varsa (§11.1 çocuk koruması) gerekçe düğmenin altında görünür.
  */
 export function MessageLink({ recipientId }: { recipientId: string }) {
+  const t = panelMessagesCopy[useLocale()].composer;
   const bound = startConversation.bind(null, recipientId);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(bound, {});
 
@@ -55,7 +59,7 @@ export function MessageLink({ recipientId }: { recipientId: string }) {
     <form action={formAction} className="flex flex-col gap-1.5">
       <Button type="submit" variant="outline" size="sm" disabled={pending}>
         {pending ? <Loader2 className="size-4 animate-spin" /> : <MessageSquare className="size-4" />}
-        Mesaj
+        {t.messageButton}
       </Button>
       {state.error && (
         <p className="max-w-xs text-xs font-medium text-amber-500">{state.error}</p>

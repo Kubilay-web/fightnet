@@ -4,12 +4,19 @@ import { safe } from "@/lib/queries";
 import { requireUser } from "@/lib/auth";
 import { Section } from "@/components/ui";
 import { ProfileForm, SportProfileManager } from "@/components/profile-forms";
+import { getLocale } from "@/lib/i18n/server";
+import { panelProfileCopy } from "@/lib/i18n/pages/panel-profile";
 
-export const metadata: Metadata = { title: "Profilim", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelProfileCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
   const user = await requireUser();
+  const t = panelProfileCopy[await getLocale()];
 
   const data = await safe(
     async () => {
@@ -34,14 +41,14 @@ export default async function ProfilePage() {
   );
 
   if (!data.full) {
-    return <p className="text-muted">Profil yüklenemedi. Veritabanı bağlantısını kontrol edin.</p>;
+    return <p className="text-muted">{t.loadError}</p>;
   }
 
   const socials = (data.full.socials ?? {}) as { instagram?: string; youtube?: string };
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Profilim" subtitle="Herkese açık profilinde görünen bilgiler">
+      <Section title={t.profileSection.title} subtitle={t.profileSection.subtitle}>
         <ProfileForm
           initial={{
             ...data.full,
@@ -52,7 +59,7 @@ export default async function ProfilePage() {
         />
       </Section>
 
-      <Section title="Disiplinlerim" subtitle="Birden fazla dövüş sporu ekleyebilirsin (§4.2 çoklu spor profili)">
+      <Section title={t.disciplinesSection.title} subtitle={t.disciplinesSection.subtitle}>
         <SportProfileManager
           sports={data.sports.map((s) => ({
             id: s.id,

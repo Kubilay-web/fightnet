@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { ImageIcon, Trash2, Heart, MessageCircle, Eye } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -9,12 +9,20 @@ import { deletePost } from "@/app/panel/actions";
 import { Badge, Card, ButtonLink, Section, EmptyState } from "@/components/ui";
 import { cld, videoPoster } from "@/lib/image";
 import { timeAgo, compact, truncate } from "@/lib/utils";
+import { getLocale } from "@/lib/i18n/server";
+import { panelPostsCopy } from "@/lib/i18n/pages/panel-posts";
 
-export const metadata: Metadata = { title: "Gönderilerim", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelPostsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function MyPostsPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = panelPostsCopy[locale];
 
   const posts = await safe(
     () =>
@@ -34,11 +42,11 @@ export default async function MyPostsPage() {
   return (
     <div className="flex flex-col gap-6">
       <Section
-        title="Gönderilerim"
-        subtitle="Antrenman videoların, teknik anlatımların ve müsabaka anların"
+        title={copy.title}
+        subtitle={copy.subtitle}
         action={
           <ButtonLink href="/panel/gonderi/yeni" size="sm">
-            <ImageIcon className="size-4" /> Yeni Gönderi
+            <ImageIcon className="size-4" /> {copy.newPost}
           </ButtonLink>
         }
       />
@@ -46,11 +54,11 @@ export default async function MyPostsPage() {
       {posts.length === 0 ? (
         <EmptyState
           icon={<ImageIcon className="size-10" />}
-          title="Henüz gönderin yok"
-          description="İlk videonu paylaş — keşfet akışında görünsün."
+          title={copy.empty.title}
+          description={copy.empty.description}
           action={
             <ButtonLink href="/panel/gonderi/yeni" size="sm" className="mt-2">
-              Gönderi Paylaş
+              {copy.empty.action}
             </ButtonLink>
           }
         />
@@ -73,10 +81,10 @@ export default async function MyPostsPage() {
 
                   <div className="min-w-0 flex-1">
                     <Link href={`/akis/${p.id}`} className="text-sm font-bold hover:text-blood-500">
-                      {p.body ? truncate(p.body, 60) : `${p.type === "VIDEO" ? "Video" : "Görsel"} gönderi`}
+                      {p.body ? truncate(p.body, 60) : p.type === "VIDEO" ? copy.videoPost : copy.imagePost}
                     </Link>
                     <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted">
-                      <span>{timeAgo(p.createdAt)}</span>
+                      <span>{timeAgo(p.createdAt, locale)}</span>
                       <span className="flex items-center gap-1">
                         <Heart className="size-3" /> {compact(p.likeCount)}
                       </span>
@@ -89,16 +97,16 @@ export default async function MyPostsPage() {
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge tone={p.moderation === "APPROVED" ? "green" : p.moderation === "PENDING" ? "amber" : "red"}>
-                        {p.moderation === "APPROVED" ? "Yayında" : p.moderation === "PENDING" ? "İncelemede" : p.moderation === "FLAGGED" ? "İşaretlendi" : "Kaldırıldı"}
+                        {p.moderation === "APPROVED" ? copy.moderation.approved : p.moderation === "PENDING" ? copy.moderation.pending : p.moderation === "FLAGGED" ? copy.moderation.flagged : copy.moderation.removed}
                       </Badge>
-                      <Badge>{p.visibility === "PUBLIC" ? "Herkese açık" : "Kısıtlı"}</Badge>
+                      <Badge>{p.visibility === "PUBLIC" ? copy.visibility.public : copy.visibility.restricted}</Badge>
                     </div>
                   </div>
 
                   <form action={deletePost.bind(null, p.id)}>
                     <button
                       type="submit"
-                      aria-label="Gönderiyi sil"
+                      aria-label={copy.deleteAria}
                       className="rounded-lg p-2 text-muted transition-colors hover:bg-blood-500/10 hover:text-blood-500"
                     >
                       <Trash2 className="size-4" />

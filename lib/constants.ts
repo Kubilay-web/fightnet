@@ -12,6 +12,51 @@ export const PLATFORM_FEE_RATE = 0.15;
 /** §4.4 — Ekipman pazarı komisyonu */
 export const MARKETPLACE_FEE_RATE = 0.12;
 
+/** §4.3 — Online koçluk komisyonu (Creator ile aynı oran) */
+export const COACHING_FEE_RATE = 0.15;
+
+/** §4.4 — PPV komisyonu; kalanı organizatöre aktarılır */
+export const PPV_FEE_RATE = 0.2;
+
+/**
+ * §4.3 / §4.4 — Platform abonelikleri.
+ * Fiyatlar dokümandaki aralıkların ortasından seçildi; §7.3 MRR bunlardan hesaplanır.
+ */
+export const PLATFORM_PLANS = {
+  PREMIUM: {
+    price: 4.99,
+    label: "Premium",
+    tagline: "Reklamsız FIGHTNET",
+    features: [
+      "Banner ve akış içi reklam gösterilmez",
+      "Gelişmiş antrenman istatistikleri ve dışa aktarım",
+      "Sparring aramada öncelikli görünürlük",
+      "Profilde Premium rozeti",
+    ],
+  },
+  COACH_TOOLS: {
+    price: 14.99,
+    label: "Antrenör Araçları",
+    tagline: "Antrenörler için SaaS",
+    features: [
+      "Sınırsız öğrenci takibi ve antrenman planı ataması",
+      "Kefalet kotası 20'den 50'ye çıkar",
+      "Öğrenci gelişim panosu ve tutulma uyarıları",
+      "Online koçluk ilanlarında komisyon indirimi",
+      "Sertifika ve lisans son kullanma takibi",
+    ],
+  },
+} as const;
+
+/** §4.3 — Antrenör-Araç abonesi olan antrenörün kefalet kotası */
+export const MAX_VOUCHES_COACH_TOOLS = 50;
+
+/** §9.3 — Federasyon/organizatör veri lisansı yıllık ücret aralığı */
+export const DATA_LICENSE_FEES = { min: 500, max: 2000, default: 1200 } as const;
+
+/** §4.6 — Salon sözleşmesinde BGB §309 Nr. 9 üst sınırı */
+export const MAX_CONTRACT_TERM_MONTHS = 24;
+
 /** §11.2 — Otomatik yasak eşiği */
 export const AUTO_BAN_SAFETY_REPORTS = 3;
 
@@ -224,6 +269,28 @@ export const AD_PLACEMENTS = [
   { value: "EVENT_SIDEBAR", label: "Etkinlik Kenar" },
   { value: "GYM_LIST", label: "Salon Listesi" },
 ];
+
+/** §4.3 — Online koçluk biçimleri */
+export const COACHING_FORMATS = [
+  { value: "VIDEO_CALL", label: "Görüntülü seans", hint: "Canlı birebir görüşme" },
+  { value: "ASYNC_REVIEW", label: "Video analizi", hint: "Sporcu video yükler, antrenör yorumlar" },
+  { value: "TRAINING_PLAN", label: "Antrenman planı", hint: "Kişiye özel program hazırlama" },
+  { value: "CHAT", label: "Mesajla takip", hint: "Süreli yazışma desteği" },
+] as const;
+
+export const COACHING_FORMAT_LABEL: Record<string, string> = COACHING_FORMATS.reduce(
+  (acc, f) => ({ ...acc, [f.value]: f.label }),
+  {} as Record<string, string>,
+);
+
+export const COACHING_STATUS_LABEL: Record<string, string> = {
+  REQUESTED: "Ödeme bekleniyor",
+  ACCEPTED: "Ödendi — planlanacak",
+  SCHEDULED: "Planlandı",
+  COMPLETED: "Tamamlandı",
+  CANCELLED: "İptal",
+  REFUNDED: "İade edildi",
+};
 
 export const PASSPORT_DOC_KINDS = [
   { value: "COACH_LICENSE", label: "Antrenör Lisansı" },

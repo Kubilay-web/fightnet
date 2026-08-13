@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDict } from "@/components/i18n/provider";
 import { Moon, Sun } from "lucide-react";
 
 export function ThemeToggle({ className }: { className?: string }) {
+  const t = useDict().ui;
   const [dark, setDark] = useState(true);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   return (
     <button
       onClick={toggle}
-      aria-label={dark ? "Açık moda geç" : "Karanlık moda geç"}
+      aria-label={dark ? t.themeLight : t.themeDark}
       className={`inline-flex size-10 items-center justify-center rounded-xl text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-50 ${className ?? ""}`}
     >
       {dark ? <Sun className="size-5" /> : <Moon className="size-5" />}

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { avatarUrl } from "@/lib/image";
 import { cn, initials } from "@/lib/utils";
 import type { VerificationLevel } from "@prisma/client";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { CalendarCheck, MapPin } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -7,12 +7,20 @@ import { requireUser } from "@/lib/auth";
 import { Badge, Card, ButtonLink, Section, EmptyState } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import { BOOKING_TYPE_LABEL, BOOKING_STATUS_LABEL } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG, type Locale } from "@/lib/i18n/config";
+import { panelBookingsCopy } from "@/lib/i18n/pages/panel-bookings";
 
-export const metadata: Metadata = { title: "Rezervasyonlarım", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = panelBookingsCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function BookingsPage() {
-  const user = await requireUser();
+  const [user, locale] = await Promise.all([requireUser(), getLocale()]);
+  const t = panelBookingsCopy[locale].list;
 
   const bookings = await safe(
     () =>
@@ -36,24 +44,24 @@ export default async function BookingsPage() {
   return (
     <div className="flex flex-col gap-8">
       <Section
-        title="Rezervasyonlarım"
-        subtitle="Deneme antrenmanları, drop-in ve ders kayıtların"
+        title={t.title}
+        subtitle={t.subtitle}
         action={
           <ButtonLink href="/salonlar" variant="outline" size="sm">
-            Salon Bul
+            {t.findGym}
           </ButtonLink>
         }
       />
 
-      <Section title="Yaklaşan">
+      <Section title={t.upcoming}>
         {upcoming.length === 0 ? (
           <EmptyState
             icon={<CalendarCheck className="size-10" />}
-            title="Yaklaşan rezervasyon yok"
-            description="Bölgendeki salonlarda ücretsiz deneme antrenmanı ayarla."
+            title={t.emptyTitle}
+            description={t.emptyDescription}
             action={
               <ButtonLink href="/salonlar" size="sm" className="mt-2">
-                Salon Bulucu
+                {t.emptyAction}
               </ButtonLink>
             }
           />
@@ -61,7 +69,7 @@ export default async function BookingsPage() {
           <Card>
             <ul className="divide-y divide-[var(--border)]">
               {upcoming.map((b) => (
-                <BookingRow key={b.id} b={b} />
+                <BookingRow key={b.id} b={b} locale={locale} />
               ))}
             </ul>
           </Card>
@@ -69,11 +77,11 @@ export default async function BookingsPage() {
       </Section>
 
       {past.length > 0 && (
-        <Section title="Geçmiş">
+        <Section title={t.past}>
           <Card>
             <ul className="divide-y divide-[var(--border)]">
               {past.map((b) => (
-                <BookingRow key={b.id} b={b} muted />
+                <BookingRow key={b.id} b={b} locale={locale} muted />
               ))}
             </ul>
           </Card>
@@ -85,6 +93,7 @@ export default async function BookingsPage() {
 
 function BookingRow({
   b,
+  locale,
   muted,
 }: {
   b: {
@@ -96,6 +105,7 @@ function BookingRow({
     gym: { name: string; slug: string; city: string; phone: string | null };
     class: { name: string; startTime: string; endTime: string } | null;
   };
+  locale: Locale;
   muted?: boolean;
 }) {
   return (
@@ -103,7 +113,7 @@ function BookingRow({
       <span className="flex size-11 shrink-0 flex-col items-center justify-center rounded-xl bg-blood-600/10 text-blood-500">
         <span className="text-sm font-black leading-none">{b.date.getDate()}</span>
         <span className="text-[10px] font-bold uppercase">
-          {b.date.toLocaleDateString("tr-TR", { month: "short" })}
+          {b.date.toLocaleDateString(LOCALE_TAG[locale], { month: "short" })}
         </span>
       </span>
 
@@ -115,7 +125,7 @@ function BookingRow({
           <span className="flex items-center gap-1">
             <MapPin className="size-3" /> {b.gym.city}
           </span>
-          <span>{formatDate(b.date)}</span>
+          <span>{formatDate(b.date, LOCALE_TAG[locale])}</span>
           {b.class && (
             <span>
               {b.class.name} · {b.class.startTime}–{b.class.endTime}
@@ -125,6 +135,7 @@ function BookingRow({
         </p>
       </div>
 
+      {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
       <div className="flex flex-wrap gap-1.5">
         <Badge>{BOOKING_TYPE_LABEL[b.type]}</Badge>
         <Badge

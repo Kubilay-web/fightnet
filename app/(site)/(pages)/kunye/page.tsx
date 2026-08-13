@@ -1,65 +1,56 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { Alert } from "@/components/ui";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { imprintCopy } from "@/lib/i18n/pages/imprint";
 
-export const metadata: Metadata = {
-  title: "Künye (Impressum)",
-  description: "FIGHTNET yasal künye bilgileri.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = imprintCopy[await getLocale()];
+  return {
+    title: copy.metaTitle,
+    description: copy.metaDescription,
+    alternates: await metadataAlternates("/kunye"),
+  };
+}
 
-export default function ImprintPage() {
+export default async function ImprintPage() {
+  const copy = imprintCopy[await getLocale()];
+
   return (
     <>
-      <h1 className="font-display text-3xl font-black sm:text-4xl">Künye (Impressum)</h1>
+      <h1 className="font-display text-3xl font-black sm:text-4xl">{copy.title}</h1>
 
-      <Alert tone="amber" title="Doldurulması gerekiyor">
-        Almanya'da TMG §5 gereği künye bilgileri zorunludur. Aşağıdaki alanlar tüzel kişilik
-        kurulduktan sonra doldurulmalıdır.
+      <Alert tone="amber" title={copy.notice.title}>
+        {copy.notice.body}
       </Alert>
 
-      <h2>Hizmet sağlayıcı</h2>
-      <ul>
-        <li>Şirket adı: [Doldurulacak]</li>
-        <li>Adres: [Sokak, Posta kodu, Şehir]</li>
-        <li>Ülke: Almanya</li>
-      </ul>
+      {copy.sections.map((section) => (
+        <Fragment key={section.heading}>
+          <h2>{section.heading}</h2>
+          <ul>
+            {section.items.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </Fragment>
+      ))}
 
-      <h2>Temsilci</h2>
-      <ul>
-        <li>Yetkili kişi: [Ad Soyad]</li>
-      </ul>
-
-      <h2>İletişim</h2>
-      <ul>
-        <li>E-posta: [kontakt@fightnet.app]</li>
-        <li>Telefon: [Opsiyonel]</li>
-      </ul>
-
-      <h2>Sicil bilgileri</h2>
-      <ul>
-        <li>Ticaret sicili: [Amtsgericht, HRB numarası]</li>
-        <li>Vergi numarası (USt-IdNr.): [DE...]</li>
-      </ul>
-
-      <h2>İçerikten sorumlu kişi (§18 Abs. 2 MStV)</h2>
-      <ul>
-        <li>[Ad Soyad, Adres]</li>
-      </ul>
-
-      <h2>AB uyuşmazlık çözümü</h2>
+      <h2>{copy.dispute.heading}</h2>
       <p>
-        Avrupa Komisyonu çevrimiçi uyuşmazlık çözümü platformu:{" "}
-        <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener" className="underline">
-          ec.europa.eu/consumers/odr
+        {copy.dispute.before}
+        <a
+          href="https://ec.europa.eu/consumers/odr"
+          target="_blank"
+          rel="noopener"
+          className="underline"
+        >
+          {copy.dispute.linkLabel}
         </a>
-        . Tüketici hakem heyeti nezdinde uyuşmazlık çözümüne katılma zorunluluğumuz bulunmamaktadır.
+        {copy.dispute.after}
       </p>
 
-      <h2>Sorumluluk</h2>
-      <p>
-        Kullanıcılar tarafından oluşturulan içerikten FIGHTNET sorumlu değildir. Bir ihlal
-        bildirimi aldığımızda ilgili içeriği derhal inceler ve gerekirse kaldırırız
-        (Notice-and-Action, DSA).
-      </p>
+      <h2>{copy.liability.heading}</h2>
+      <p>{copy.liability.body}</p>
     </>
   );
 }

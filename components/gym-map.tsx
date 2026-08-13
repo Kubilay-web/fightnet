@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { MapPin, Building2, CalendarDays, Navigation, Radio } from "lucide-react";
 import { Badge, Card, CardBody, Select } from "@/components/ui";
 import { cn, distanceKm, formatDate } from "@/lib/utils";
-import { DISCIPLINE_LABEL, DISCIPLINES } from "@/lib/constants";
+import { useDict, useLocale } from "@/components/i18n/provider";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { disciplineOptions, labelsFor } from "@/lib/i18n/labels";
 import type { Discipline } from "@prisma/client";
 
 interface GymPin {
@@ -28,6 +30,9 @@ interface EventPin {
 const BOUNDS = { minLat: 45.6, maxLat: 55.2, minLng: 5.5, maxLng: 17.2 };
 
 export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] }) {
+  const d = useDict();
+  const locale = useLocale();
+  const L = labelsFor(locale);
   const [discipline, setDiscipline] = useState<string>("");
   const [layer, setLayer] = useState<"ALL" | "GYMS" | "EVENTS">("ALL");
   const [selected, setSelected] = useState<{ kind: "gym" | "event"; id: string } | null>(null);
@@ -70,16 +75,16 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
         <Select value={layer} onChange={(e) => setLayer(e.target.value as typeof layer)} className="w-auto">
-          <option value="ALL">Tümü</option>
-          <option value="GYMS">Sadece salonlar</option>
-          <option value="EVENTS">Sadece etkinlikler</option>
+          <option value="ALL">{d.map.layerAll}</option>
+          <option value="GYMS">{d.map.layerGyms}</option>
+          <option value="EVENTS">{d.map.layerEvents}</option>
         </Select>
 
         <Select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className="w-auto">
-          <option value="">Tüm disiplinler</option>
-          {DISCIPLINES.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.label}
+          <option value="">{d.map.allDisciplines}</option>
+          {disciplineOptions(locale).map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </Select>
@@ -89,7 +94,7 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
           className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-3.5 py-2.5 text-sm font-semibold transition-colors hover:border-blood-500 hover:text-blood-500"
         >
           <Navigation className="size-4" />
-          Konumumu bul
+          {d.map.locateMe}
         </button>
       </div>
 
@@ -151,19 +156,19 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
             <span
               className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/30"
               style={{ left: `${project(me.lat, me.lng).x}%`, top: `${project(me.lat, me.lng).y}%` }}
-              title="Konumun"
+              title={d.map.yourLocation}
             />
           )}
 
           <div className="absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-xl bg-[var(--bg)]/85 px-2.5 py-1.5 text-[11px] font-semibold backdrop-blur">
             <span className="flex items-center gap-1">
-              <MapPin className="size-3 fill-blood-600 text-blood-800" /> Salon
+              <MapPin className="size-3 fill-blood-600 text-blood-800" /> {d.map.legendGym}
             </span>
             <span className="flex items-center gap-1">
-              <MapPin className="size-3 fill-gold-500 text-gold-600" /> Halo
+              <MapPin className="size-3 fill-gold-500 text-gold-600" /> {d.map.legendHalo}
             </span>
             <span className="flex items-center gap-1">
-              <span className="size-2 rounded-full bg-blue-500" /> Etkinlik
+              <span className="size-2 rounded-full bg-blue-500" /> {d.map.legendEvent}
             </span>
           </div>
         </div>
@@ -180,12 +185,12 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
                   </Link>
                 </div>
                 <p className="text-xs text-muted">
-                  {selectedGym.city} · {selectedGym.memberCount} üye
+                  {selectedGym.city} · {selectedGym.memberCount} {d.map.members}
                   {me && ` · ${distanceKm(me.lat, me.lng, selectedGym.lat, selectedGym.lng)} km`}
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {selectedGym.disciplines.slice(0, 4).map((d) => (
-                    <Badge key={d}>{DISCIPLINE_LABEL[d]}</Badge>
+                  {selectedGym.disciplines.slice(0, 4).map((dis) => (
+                    <Badge key={dis}>{L.discipline[dis]}</Badge>
                   ))}
                 </div>
                 <a
@@ -194,7 +199,7 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
                   rel="noopener"
                   className="text-xs font-bold text-blood-500 hover:underline"
                 >
-                  Yol tarifi al →
+                  {d.map.directions}
                 </a>
               </CardBody>
             </Card>
@@ -214,7 +219,7 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
                   </Link>
                 </div>
                 <p className="text-xs text-muted">
-                  {selectedEvent.city} · {formatDate(selectedEvent.startsAt)}
+                  {selectedEvent.city} · {formatDate(selectedEvent.startsAt, LOCALE_TAG[locale])}
                 </p>
               </CardBody>
             </Card>
@@ -236,12 +241,12 @@ export function GymMap({ gyms, events }: { gyms: GymPin[]; events: EventPin[] })
                         {me && ` · ${distanceKm(me.lat, me.lng, g.lat, g.lng)} km`}
                       </p>
                     </div>
-                    {g.trialEnabled && <Badge tone="green">Deneme</Badge>}
+                    {g.trialEnabled && <Badge tone="green">{d.map.trial}</Badge>}
                   </button>
                 </li>
               ))}
               {sortedGyms.length === 0 && (
-                <li className="p-6 text-center text-sm text-muted">Bu filtrelerle salon yok</li>
+                <li className="p-6 text-center text-sm text-muted">{d.map.noGyms}</li>
               )}
             </ul>
           </Card>

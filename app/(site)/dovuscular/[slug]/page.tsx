@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import {
   MapPin, Calendar, Ruler, Dumbbell, Flame, Trophy, Users,
@@ -17,10 +17,11 @@ import { MessageLink } from "@/components/message-forms";
 import { PostCard } from "@/components/cards";
 import { cld } from "@/lib/image";
 import { formatRecord, formatDate, compact, age, cn, disciplineGradient } from "@/lib/utils";
-import {
-  DISCIPLINE_LABEL, SKILL_LABEL, BELT_LABEL, BELT_COLOR,
-  VERIFICATION_LABEL, ROLE_LABEL,
-} from "@/lib/constants";
+import { BELT_COLOR } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { labelsFor } from "@/lib/i18n/labels";
+import { fightersCopy } from "@/lib/i18n/pages/fighters";
 
 export const revalidate = 120;
 
@@ -71,18 +72,25 @@ async function loadFighter(slug: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const f = await loadFighter(slug);
-  if (!f) return { title: "Dövüşçü bulunamadı" };
+  const [f, locale] = await Promise.all([loadFighter(slug), getLocale()]);
+  const c = fightersCopy[locale].detail;
+  const alternates = await metadataAlternates(`/dovuscular/${slug}`);
+  if (!f) return { title: c.notFound, alternates };
+  const L = labelsFor(locale);
   const p = f.sportProfiles[0];
   const record = p ? formatRecord(p.wins, p.losses, p.draws) : "";
   return {
     title: f.name,
     description:
       f.bio?.slice(0, 155) ??
-      `${f.name} — ${p ? DISCIPLINE_LABEL[p.discipline] : "dövüşçü"} ${record}. FIGHTNET profilini gör.`,
+      c.metaDescription
+        .replace("{name}", f.name)
+        .replace("{discipline}", p ? L.discipline[p.discipline] : c.fallbackDiscipline)
+        .replace("{record}", record),
+    alternates,
     openGraph: {
       title: `${f.name} · FIGHTNET`,
-      description: f.bio ?? `${p ? DISCIPLINE_LABEL[p.discipline] : ""} ${record}`,
+      description: f.bio ?? `${p ? L.discipline[p.discipline] : ""} ${record}`,
       images: f.avatarUrl ? [{ url: cld(f.avatarUrl, { w: 1200, h: 630 }) }] : undefined,
     },
   };
@@ -90,8 +98,11 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function FighterProfilePage({ params }: { params: Params }) {
   const { slug } = await params;
-  const [f, session] = await Promise.all([loadFighter(slug), getSession()]);
+  const [f, session, locale] = await Promise.all([loadFighter(slug), getSession(), getLocale()]);
   if (!f) notFound();
+
+  const c = fightersCopy[locale].detail;
+  const L = labelsFor(locale);
 
   const isSelf = session?.sub === f.id;
   const [isFollowing, posts] = await Promise.all([
@@ -162,7 +173,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
               <span>@{f.username}</span>
-              <span>{ROLE_LABEL[f.role]}</span>
+              <span>{L.role[f.role]}</span>
               {f.city && (
                 <span className="flex items-center gap-1">
                   <MapPin className="size-3.5" />
@@ -172,7 +183,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
               {userAge && !f.isMinor && (
                 <span className="flex items-center gap-1">
                   <Calendar className="size-3.5" />
-                  {userAge} yaş
+                  {userAge} {c.ageSuffix}
                 </span>
               )}
               {f.heightCm && (
@@ -187,7 +198,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
           <div className="flex flex-wrap gap-2 pb-1">
             {isSelf ? (
               <ButtonLink href="/panel/profil" variant="outline" size="sm">
-                Profili Düzenle
+                {c.editProfile}
               </ButtonLink>
             ) : (
               <>
@@ -195,7 +206,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
                 {session && <MessageLink recipientId={f.id} />}
                 {f.creatorTiers.length > 0 && (
                   <ButtonLink href={`/creator/${f.username}`} variant="gold" size="sm">
-                    Destekle
+                    {c.support}
                   </ButtonLink>
                 )}
                 <ReportButton targetType="USER" targetId={f.id} reportedUserId={f.id} authed={!!session} />
@@ -206,10 +217,10 @@ export default async function FighterProfilePage({ params }: { params: Params })
 
         {/* Sayaçlar */}
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <MiniStat icon={Users} label="Takipçi" value={compact(f.followerCount)} />
-          <MiniStat icon={Flame} label="Streak" value={`${f.trainingStreak} gün`} tone="red" />
-          <MiniStat icon={Dumbbell} label="Antrenman" value={compact(f.totalTrainings)} />
-          <MiniStat icon={ShieldCheck} label="Doğrulama" value={VERIFICATION_LABEL[f.verification].split("· ")[1] ?? "—"} />
+          <MiniStat icon={Users} label={c.statFollowers} value={compact(f.followerCount)} />
+          <MiniStat icon={Flame} label={c.statStreak} value={c.streakValue.replace("{days}", String(f.trainingStreak))} tone="red" />
+          <MiniStat icon={Dumbbell} label={c.statTrainings} value={compact(f.totalTrainings)} />
+          <MiniStat icon={ShieldCheck} label={c.statVerification} value={L.verificationShort[f.verification]} />
         </div>
 
         <div className="mt-8 grid gap-6 pb-16 lg:grid-cols-[1fr_340px]">
@@ -218,17 +229,17 @@ export default async function FighterProfilePage({ params }: { params: Params })
             {f.bio && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">Hakkında</h2>
+                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">{c.about}</h2>
                   <p className="whitespace-pre-line text-sm leading-relaxed">{f.bio}</p>
                 </CardBody>
               </Card>
             )}
 
             {/* Spor profilleri — §4.2 çoklu spor */}
-            <Section title="Disiplinler">
+            <Section title={c.disciplines}>
               <div className="grid gap-3 sm:grid-cols-2">
                 {f.sportProfiles.length === 0 && (
-                  <p className="text-sm text-muted">Henüz disiplin eklenmemiş.</p>
+                  <p className="text-sm text-muted">{c.noDisciplines}</p>
                 )}
                 {f.sportProfiles.map((sp) => (
                   <Card key={sp.id}>
@@ -236,35 +247,35 @@ export default async function FighterProfilePage({ params }: { params: Params })
                     <CardBody className="flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h3 className="font-bold">{DISCIPLINE_LABEL[sp.discipline]}</h3>
+                          <h3 className="font-bold">{L.discipline[sp.discipline]}</h3>
                           <p className="text-xs text-muted">
-                            {SKILL_LABEL[sp.level]}
-                            {sp.isPro && " · Profesyonel"}
-                            {sp.yearsActive > 0 && ` · ${sp.yearsActive} yıl`}
+                            {L.skill[sp.level]}
+                            {sp.isPro && ` · ${c.professional}`}
+                            {sp.yearsActive > 0 && ` · ${c.yearsActive.replace("{years}", String(sp.yearsActive))}`}
                           </p>
                         </div>
-                        {sp.isPrimary && <Badge tone="red">Ana</Badge>}
+                        {sp.isPrimary && <Badge tone="red">{c.primary}</Badge>}
                       </div>
 
                       {sp.belt !== "NONE" && (
                         <div className="flex items-center gap-2">
                           <span className="h-3 w-10 rounded-sm" style={{ background: BELT_COLOR[sp.belt] }} />
                           <span className="text-xs font-bold">
-                            {BELT_LABEL[sp.belt]} Kemer
-                            {sp.stripes > 0 && ` · ${sp.stripes} bant`}
+                            {L.belt[sp.belt]} {c.beltSuffix}
+                            {sp.stripes > 0 && ` · ${c.stripes.replace("{stripes}", String(sp.stripes))}`}
                           </span>
                         </div>
                       )}
 
                       <div className="grid grid-cols-4 gap-2 rounded-xl bg-[var(--bg-subtle)] p-3 text-center">
-                        <RecordCell label="G" value={sp.wins} tone="text-emerald-500" />
-                        <RecordCell label="M" value={sp.losses} tone="text-blood-500" />
-                        <RecordCell label="B" value={sp.draws} />
-                        <RecordCell label="KO" value={sp.koWins} tone="text-gold-500" />
+                        <RecordCell label={c.recordWins} value={sp.wins} tone="text-emerald-500" />
+                        <RecordCell label={c.recordLosses} value={sp.losses} tone="text-blood-500" />
+                        <RecordCell label={c.recordDraws} value={sp.draws} />
+                        <RecordCell label={c.recordKo} value={sp.koWins} tone="text-gold-500" />
                       </div>
 
                       {sp.weightClass && (
-                        <p className="text-xs text-muted">Kilo sınıfı: {sp.weightClass}</p>
+                        <p className="text-xs text-muted">{c.weightClass}: {sp.weightClass}</p>
                       )}
                       {sp.achievements.length > 0 && (
                         <ul className="flex flex-col gap-1">
@@ -283,9 +294,9 @@ export default async function FighterProfilePage({ params }: { params: Params })
             </Section>
 
             {/* Gönderiler */}
-            <Section title="Gönderiler">
+            <Section title={c.posts}>
               {posts.length === 0 ? (
-                <EmptyState title="Henüz gönderi yok" description="Bu sporcu henüz içerik paylaşmadı." />
+                <EmptyState title={c.noPostsTitle} description={c.noPostsBody} />
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {posts.map((p) => (
@@ -302,7 +313,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
             {f.gymMemberships.length > 0 && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">Salonlar</h2>
+                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">{c.gyms}</h2>
                   <div className="flex flex-col gap-2">
                     {f.gymMemberships.map((m) => (
                       <Link
@@ -321,7 +332,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
                           <p className="truncate text-sm font-bold">{m.gym.name}</p>
                           <p className="truncate text-xs text-muted">{m.gym.city}</p>
                         </div>
-                        {m.isPrimary && <Badge tone="red">Ana</Badge>}
+                        {m.isPrimary && <Badge tone="red">{c.primary}</Badge>}
                       </Link>
                     ))}
                   </div>
@@ -333,21 +344,21 @@ export default async function FighterProfilePage({ params }: { params: Params })
             {f.coachAt.length > 0 && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">Antrenörlük</h2>
+                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">{c.coaching}</h2>
                   <div className="flex flex-col gap-2">
-                    {f.coachAt.map((c) => (
-                      <Link key={c.gym.slug} href={`/salonlar/${c.gym.slug}`} className="flex items-center justify-between gap-2 rounded-xl p-2 hover:bg-ink-100 dark:hover:bg-ink-800">
+                    {f.coachAt.map((ca) => (
+                      <Link key={ca.gym.slug} href={`/salonlar/${ca.gym.slug}`} className="flex items-center justify-between gap-2 rounded-xl p-2 hover:bg-ink-100 dark:hover:bg-ink-800">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold">{c.gym.name}</p>
-                          <p className="truncate text-xs text-muted">{c.title ?? "Antrenör"}{c.isHead && " · Baş Antrenör"}</p>
+                          <p className="truncate text-sm font-bold">{ca.gym.name}</p>
+                          <p className="truncate text-xs text-muted">{ca.title ?? c.coachFallbackTitle}{ca.isHead && ` · ${c.headCoach}`}</p>
                         </div>
-                        {c.verified && <VerifiedMark level="LEVEL_2" />}
+                        {ca.verified && <VerifiedMark level="LEVEL_2" />}
                       </Link>
                     ))}
                   </div>
                   {f._count.vouchesGiven > 0 && (
                     <p className="mt-3 rounded-xl bg-[var(--bg-subtle)] px-3 py-2 text-xs text-muted">
-                      Bu antrenör <b className="text-[var(--fg)]">{f._count.vouchesGiven}</b> sporcuya kefil oldu.
+                      {c.vouchedForLead} <b className="text-[var(--fg)]">{f._count.vouchesGiven}</b> {c.vouchedForTail}
                     </p>
                   )}
                 </CardBody>
@@ -358,7 +369,7 @@ export default async function FighterProfilePage({ params }: { params: Params })
             {f.vouchesReceived.length > 0 && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">Kefil Antrenörler</h2>
+                  <h2 className="mb-3 text-xs font-black uppercase tracking-wider text-muted">{c.vouchingCoaches}</h2>
                   <div className="flex flex-col gap-2">
                     {f.vouchesReceived.map((v) => (
                       <Link key={v.coach.slug} href={`/dovuscular/${v.coach.slug}`} className="flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-ink-100 dark:hover:bg-ink-800">
@@ -376,10 +387,10 @@ export default async function FighterProfilePage({ params }: { params: Params })
             {(f.website || socials.instagram || socials.youtube) && (
               <Card>
                 <CardBody className="flex flex-col gap-2">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-muted">Bağlantılar</h2>
+                  <h2 className="text-xs font-black uppercase tracking-wider text-muted">{c.links}</h2>
                   {f.website && (
                     <a href={f.website} target="_blank" rel="noopener nofollow" className="flex items-center gap-2 text-sm hover:text-blood-500">
-                      <Globe className="size-4" /> Web sitesi
+                      <Globe className="size-4" /> {c.website}
                     </a>
                   )}
                   {socials.instagram && (
@@ -398,8 +409,8 @@ export default async function FighterProfilePage({ params }: { params: Params })
 
             <Card>
               <CardBody className="text-xs text-muted">
-                <p>FIGHTNET üyesi · {formatDate(f.createdAt)}</p>
-                <p className="mt-1">En uzun streak: {f.longestStreak} gün</p>
+                <p>{c.memberSince} {formatDate(f.createdAt, LOCALE_TAG[locale])}</p>
+                <p className="mt-1">{c.longestStreak} {c.streakValue.replace("{days}", String(f.longestStreak))}</p>
               </CardBody>
             </Card>
           </aside>

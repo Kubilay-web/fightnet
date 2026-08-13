@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { cn } from "@/lib/utils";
 
 export { Button, ButtonLink } from "./button";
@@ -252,11 +252,15 @@ export function Pagination({
   totalPages,
   basePath,
   params,
+  /** §5.2 — Etiket sayfadan geçilir; bu modül hem sunucu hem istemci
+      bileşenlerinden kullanıldığı için sözlüğü kendisi okuyamaz. */
+  label = "Pagination",
 }: {
   page: number;
   totalPages: number;
   basePath: string;
   params?: Record<string, string | undefined>;
+  label?: string;
 }) {
   if (totalPages <= 1) return null;
   const build = (p: number) => {
@@ -270,7 +274,7 @@ export function Pagination({
   );
 
   return (
-    <nav className="flex items-center justify-center gap-1.5 pt-2" aria-label="Sayfalama">
+    <nav className="flex items-center justify-center gap-1.5 pt-2" aria-label={label}>
       {page > 1 && (
         <Link href={build(page - 1)} className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-ink-100 dark:hover:bg-ink-800">
           ‹

@@ -7,13 +7,19 @@ import { safe, gymCardSelect } from "@/lib/queries";
 import { GymCard } from "@/components/cards";
 import { EmptyState, Pagination, Skeleton, Section, ButtonLink } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
-import { DISCIPLINES, PAGE_SIZE, TARGET_CITIES } from "@/lib/constants";
+import { PAGE_SIZE, TARGET_CITIES } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { disciplineOptions } from "@/lib/i18n/labels";
+import { gymsCopy } from "@/lib/i18n/pages/gyms";
 
-export const metadata: Metadata = {
-  title: "Salon Bulucu",
-  description:
-    "DACH bölgesindeki dövüş sporu salonlarını bul. MMA, boks, BJJ, Muay Thai — deneme antrenmanı için hemen rezervasyon yap.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const c = gymsCopy[await getLocale()].list;
+  return {
+    title: c.meta.title,
+    description: c.meta.description,
+    alternates: await metadataAlternates("/salonlar"),
+  };
+}
 
 export const revalidate = 180;
 
@@ -21,15 +27,17 @@ type SP = Promise<Record<string, string | undefined>>;
 
 export default async function GymsPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
+  const locale = await getLocale();
+  const c = gymsCopy[locale].list;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
       <Section
-        title="Salon Bulucu"
-        subtitle="Bölgendeki dövüş sporu salonlarını keşfet, deneme antrenmanı ayarla"
+        title={c.title}
+        subtitle={c.subtitle}
         action={
           <ButtonLink href="/harita" variant="outline" size="sm">
-            <Map className="size-4" /> Haritada Gör
+            <Map className="size-4" /> {c.mapCta}
           </ButtonLink>
         }
       >
@@ -39,31 +47,31 @@ export default async function GymsPage({ searchParams }: { searchParams: SP }) {
           filters={[
             {
               key: "discipline",
-              label: "Disiplin",
-              options: DISCIPLINES.map((d) => ({ value: d.value, label: d.label })),
+              label: c.filterDiscipline,
+              options: disciplineOptions(locale),
             },
             {
               key: "city",
-              label: "Şehir",
-              options: TARGET_CITIES.map((c) => ({ value: c, label: c })),
+              label: c.filterCity,
+              options: TARGET_CITIES.map((city) => ({ value: city, label: city })),
             },
             {
               key: "trial",
-              label: "Deneme",
-              options: [{ value: "1", label: "Deneme antrenmanı var" }],
+              label: c.filterTrial,
+              options: [{ value: "1", label: c.trialAvailable }],
             },
             {
               key: "sort",
-              label: "Sıralama",
+              label: c.filterSort,
               options: [
-                { value: "members", label: "En çok üye" },
-                { value: "rating", label: "En yüksek puan" },
-                { value: "new", label: "En yeni" },
+                { value: "members", label: c.sortMembers },
+                { value: "rating", label: c.sortRating },
+                { value: "new", label: c.sortNew },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="Salon adı veya şehir ara…"
+          searchPlaceholder={c.searchPlaceholder}
         />
 
         <Suspense key={JSON.stringify(sp)} fallback={<GridSkeleton />}>
@@ -75,6 +83,7 @@ export default async function GymsPage({ searchParams }: { searchParams: SP }) {
 }
 
 async function GymResults({ sp }: { sp: Record<string, string | undefined> }) {
+  const c = gymsCopy[await getLocale()].list;
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const q = sp.q?.trim();
 
@@ -116,11 +125,11 @@ async function GymResults({ sp }: { sp: Record<string, string | undefined> }) {
     return (
       <EmptyState
         icon={<Building2 className="size-10" />}
-        title="Salon bulunamadı"
-        description="Filtreleri değiştir ya da salonunu FIGHTNET'e ekle."
+        title={c.emptyTitle}
+        description={c.emptyBody}
         action={
           <ButtonLink href="/salonlar-icin" size="sm" className="mt-2">
-            Salonumu Ekle
+            {c.emptyCta}
           </ButtonLink>
         }
       />
@@ -129,7 +138,7 @@ async function GymResults({ sp }: { sp: Record<string, string | undefined> }) {
 
   return (
     <>
-      <p className="text-sm text-muted">{total} salon bulundu</p>
+      <p className="text-sm text-muted">{c.resultCount.replace("{count}", String(total))}</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {gyms.map((g, i) => (
           <GymCard key={g.id} g={g} priority={i < 3} />

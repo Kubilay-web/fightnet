@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Users } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
@@ -10,9 +10,17 @@ import { Badge, Card, Section, EmptyState, Pagination } from "@/components/ui";
 import { FilterBar } from "@/components/filter-bar";
 import { AdminUserForm } from "@/components/admin-user-form";
 import { formatDate, timeAgo } from "@/lib/utils";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { ROLE_LABEL, PAGE_SIZE } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { adminCoreCopy } from "@/lib/i18n/pages/admin-core";
 
-export const metadata: Metadata = { title: "Kullanıcılar", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminCoreCopy[await getLocale()].users;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 type SP = Promise<Record<string, string | undefined>>;
@@ -20,6 +28,9 @@ type SP = Promise<Record<string, string | undefined>>;
 export default async function AdminUsersPage({ searchParams }: { searchParams: SP }) {
   await requireAdmin();
   const sp = await searchParams;
+  const locale = await getLocale();
+  const c = adminCoreCopy[locale].users;
+  const tag = LOCALE_TAG[locale];
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
   const q = sp.q?.trim();
 
@@ -59,42 +70,42 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
 
   return (
     <div className="flex flex-col gap-6">
-      <Section title="Kullanıcılar" subtitle={`${total} kayıt`}>
+      <Section title={c.title} subtitle={c.subtitle(total)}>
         <FilterBar
           basePath="/admin/kullanicilar"
           current={sp}
           filters={[
             {
               key: "role",
-              label: "Rol",
+              label: c.roleLabel,
               options: Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label })),
             },
             {
               key: "verification",
-              label: "Doğrulama",
+              label: c.verificationLabel,
               options: [
-                { value: "LEVEL_0", label: "Seviye 0" },
-                { value: "LEVEL_1", label: "Seviye 1" },
-                { value: "LEVEL_2", label: "Seviye 2" },
+                { value: "LEVEL_0", label: c.level0 },
+                { value: "LEVEL_1", label: c.level1 },
+                { value: "LEVEL_2", label: c.level2 },
               ],
             },
             {
               key: "state",
-              label: "Durum",
+              label: c.stateLabel,
               options: [
-                { value: "banned", label: "Askıya alınmış" },
-                { value: "founder", label: "Kurucu üye" },
-                { value: "minor", label: "18 yaş altı" },
+                { value: "banned", label: c.stateBanned },
+                { value: "founder", label: c.stateFounder },
+                { value: "minor", label: c.stateMinor },
               ],
             },
           ]}
           searchKey="q"
-          searchPlaceholder="İsim, kullanıcı adı veya e-posta…"
+          searchPlaceholder={c.searchPlaceholder}
         />
       </Section>
 
       {users.length === 0 ? (
-        <EmptyState icon={<Users className="size-10" />} title="Kullanıcı bulunamadı" />
+        <EmptyState icon={<Users className="size-10" />} title={c.empty} />
       ) : (
         <div className="flex flex-col gap-3">
           {users.map((u) => (
@@ -106,18 +117,18 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                       <span className="min-w-0 max-w-full truncate font-bold">{u.name}</span>
                       <VerifiedMark level={u.verification} />
-                      {u.isFounder && <Badge tone="gold">Kurucu</Badge>}
-                      {u.isMinor && <Badge tone="red">18-</Badge>}
-                      {u.isBanned && <Badge tone="red">Askıda</Badge>}
-                      {!u.isActive && <Badge>Pasif</Badge>}
+                      {u.isFounder && <Badge tone="gold">{c.founderBadge}</Badge>}
+                      {u.isMinor && <Badge tone="red">{c.minorBadge}</Badge>}
+                      {u.isBanned && <Badge tone="red">{c.bannedBadge}</Badge>}
+                      {!u.isActive && <Badge>{c.inactiveBadge}</Badge>}
                     </div>
                     <p className="truncate text-xs text-muted">
                       @{u.username} · {u.email} · {u.city ?? "—"}
                     </p>
                     <p className="text-xs text-muted">
-                      Kayıt: {formatDate(u.createdAt)}
-                      {u.lastActiveAt && ` · Son aktif: ${timeAgo(u.lastActiveAt)}`}
-                      {" · "}{u.followerCount} takipçi · {u.totalTrainings} antrenman
+                      {c.registered(formatDate(u.createdAt, tag))}
+                      {u.lastActiveAt && c.lastActive(timeAgo(u.lastActiveAt, locale))}
+                      {" · "}{c.followers(u.followerCount)} · {c.trainings(u.totalTrainings)}
                     </p>
                   </div>
                   <Badge>{ROLE_LABEL[u.role]}</Badge>
@@ -140,7 +151,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
                     target="_blank"
                     className="mt-3 inline-block text-sm font-bold text-blood-500 hover:underline"
                   >
-                    Profili aç →
+                    {c.openProfile}
                   </Link>
                 </div>
               </details>

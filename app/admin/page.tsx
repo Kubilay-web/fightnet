@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import {
   Users, ShieldCheck, Building2, CalendarDays, Flag, TrendingUp,
   Euro, ListChecks, AlertTriangle, ArrowRight, Dumbbell,
@@ -10,13 +10,24 @@ import { requireAdmin } from "@/lib/auth";
 import { Badge, Card, CardBody, Section, Stat, Alert, EmptyState } from "@/components/ui";
 import { Avatar } from "@/components/ui/avatar";
 import { compact, formatMoney, timeAgo, cn } from "@/lib/utils";
+// TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir
 import { KPI_GATES, REPORT_REASON_LABEL } from "@/lib/constants";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
+import { adminCoreCopy } from "@/lib/i18n/pages/admin-core";
 
-export const metadata: Metadata = { title: "Admin", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminCoreCopy[await getLocale()].home;
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
   await requireAdmin();
+  const locale = await getLocale();
+  const t = adminCoreCopy[locale];
+  const c = t.home;
 
   const d = await safe(
     async () => {
@@ -85,24 +96,24 @@ export default async function AdminHome() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section title="Genel Bakış" subtitle="Platform sağlığı ve KPI takibi" />
+      <Section title={c.title} subtitle={c.subtitle} />
 
       {queueTotal > 0 && (
-        <Alert tone="amber" title={`${queueTotal} işlem bekliyor`}>
+        <Alert tone="amber" title={c.queueTitle(queueTotal)}>
           <span className="flex flex-wrap gap-x-4 gap-y-1">
             {d.pendingVerifications > 0 && (
               <Link href="/admin/dogrulama" className="font-bold underline">
-                {d.pendingVerifications} doğrulama talebi
+                {c.pendingVerifications(d.pendingVerifications)}
               </Link>
             )}
             {d.openReports > 0 && (
               <Link href="/admin/raporlar" className="font-bold underline">
-                {d.openReports} açık rapor
+                {c.openReportsLink(d.openReports)}
               </Link>
             )}
             {d.pendingPassport > 0 && (
               <Link href="/admin/passport" className="font-bold underline">
-                {d.pendingPassport} passport belgesi
+                {c.pendingPassport(d.pendingPassport)}
               </Link>
             )}
           </span>
@@ -114,51 +125,52 @@ export default async function AdminHome() {
         <CardBody className="flex flex-wrap items-center gap-6">
           <div>
             <p className="text-[11px] font-black uppercase tracking-wider text-blood-500">
-              North Star Metric
+              {c.northStar}
             </p>
             <p className="mt-1 font-display text-5xl font-black tabular-nums">{compact(d.mavu)}</p>
-            <p className="text-sm text-muted">MAVU — Aylık Aktif Doğrulanmış Kullanıcı</p>
+            <p className="text-sm text-muted">{c.mavuLabel}</p>
           </div>
           <div className="flex flex-wrap gap-6 border-l border-[var(--border)] pl-6">
-            <MiniKpi label="DAU" value={compact(d.dau)} />
-            <MiniKpi label="DAU/Toplam" value={`%${dauMau}`} tone={dauMau >= 20 ? "green" : "amber"} />
-            <MiniKpi label="MRR" value={formatMoney(d.mrr)} />
-            <MiniKpi label="Ödeyen salon" value={String(d.payingGyms)} />
+            <MiniKpi label={c.dau} value={compact(d.dau)} />
+            <MiniKpi label={c.dauTotal} value={t.percent(dauMau)} tone={dauMau >= 20 ? "green" : "amber"} />
+            <MiniKpi label={c.mrr} value={formatMoney(d.mrr, "EUR", LOCALE_TAG[locale])} />
+            <MiniKpi label={c.payingGyms} value={String(d.payingGyms)} />
           </div>
         </CardBody>
       </Card>
 
       {/* Ana metrikler */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Toplam kullanıcı" value={compact(d.totalUsers)} hint={`+${d.newUsers30} son 30 gün`} />
-        <Stat label="Doğrulanmış" value={compact(d.verifiedUsers)} tone="green" />
-        <Stat label="Aktif salon" value={d.activeGyms} hint={`${d.payingGyms} ödeyen`} />
-        <Stat label="Bekleme listesi" value={compact(d.waitlist)} hint={`+${d.waitlistNew} son 30 gün`} />
+        <Stat label={c.totalUsers} value={compact(d.totalUsers)} hint={c.last30(d.newUsers30)} />
+        <Stat label={c.verified} value={compact(d.verifiedUsers)} tone="green" />
+        <Stat label={c.activeGyms} value={d.activeGyms} hint={c.payingHint(d.payingGyms)} />
+        <Stat label={c.waitlist} value={compact(d.waitlist)} hint={c.last30(d.waitlistNew)} />
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Canlı etkinlik" value={d.liveEvents} tone={d.liveEvents ? "red" : "neutral"} />
-        <Stat label="Yaklaşan etkinlik" value={d.upcomingEvents} />
-        <Stat label="Antrenman kaydı" value={compact(d.totalTrainings)} />
-        <Stat label="Açık rapor" value={d.openReports} tone={d.openReports > 5 ? "red" : "neutral"} />
+        <Stat label={c.liveEvents} value={d.liveEvents} tone={d.liveEvents ? "red" : "neutral"} />
+        <Stat label={c.upcomingEvents} value={d.upcomingEvents} />
+        <Stat label={c.trainingLogs} value={compact(d.totalTrainings)} />
+        <Stat label={c.openReports} value={d.openReports} tone={d.openReports > 5 ? "red" : "neutral"} />
       </div>
 
       {/* §7.4 — Dur/Devam kapıları */}
-      <Section title="Dur/Devam Kapıları" subtitle="Beta programı kilometre taşları">
+      <Section title={c.gates.title} subtitle={c.gates.subtitle}>
         <div className="no-scrollbar overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-left text-xs font-black uppercase tracking-wider text-muted">
-                <th className="py-2 pr-3">Ay</th>
-                <th className="py-2 pr-3">🟢 Yeşil</th>
-                <th className="py-2 pr-3">🟡 Sarı</th>
-                <th className="py-2">🔴 Kırmızı</th>
+                <th className="py-2 pr-3">{c.gates.month}</th>
+                <th className="py-2 pr-3">{c.gates.green}</th>
+                <th className="py-2 pr-3">{c.gates.yellow}</th>
+                <th className="py-2">{c.gates.red}</th>
               </tr>
             </thead>
             <tbody>
+              {/* TODO(i18n): KPI_GATES eşik metinleri hâlâ Türkçe — lib/constants.ts merkezî kaynak */}
               {KPI_GATES.map((g) => (
                 <tr key={g.month} className="border-b border-[var(--border)]">
-                  <td className="py-2.5 pr-3 font-black">Ay {g.month}</td>
+                  <td className="py-2.5 pr-3 font-black">{c.gates.monthCell(g.month)}</td>
                   <td className="py-2.5 pr-3 text-emerald-500">{g.green}</td>
                   <td className="py-2.5 pr-3 text-amber-500">{g.yellow}</td>
                   <td className="py-2.5 text-blood-500">{g.red}</td>
@@ -172,15 +184,15 @@ export default async function AdminHome() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Öncelikli raporlar */}
         <Section
-          title="Öncelikli Raporlar"
+          title={c.priorityReports}
           action={
             <Link href="/admin/raporlar" className="text-sm font-bold text-blood-500 hover:underline">
-              Tümü →
+              {c.seeAll}
             </Link>
           }
         >
           {d.recentReports.length === 0 ? (
-            <EmptyState icon={<Flag className="size-8" />} title="Açık rapor yok" description="Moderasyon kuyruğu temiz." />
+            <EmptyState icon={<Flag className="size-8" />} title={c.noReports.title} description={c.noReports.description} />
           ) : (
             <Card>
               <ul className="divide-y divide-[var(--border)]">
@@ -197,10 +209,10 @@ export default async function AdminHome() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold">{REPORT_REASON_LABEL[r.reason]}</p>
                       <p className="text-xs text-muted">
-                        {r.targetType} · {r.reporter.name} · {timeAgo(r.createdAt)}
+                        {r.targetType} · {r.reporter.name} · {timeAgo(r.createdAt, locale)}
                       </p>
                     </div>
-                    {r.priority >= 2 && <Badge tone="red">Acil</Badge>}
+                    {r.priority >= 2 && <Badge tone="red">{c.urgent}</Badge>}
                   </li>
                 ))}
               </ul>
@@ -210,10 +222,10 @@ export default async function AdminHome() {
 
         {/* Yeni kullanıcılar */}
         <Section
-          title="Yeni Kayıtlar"
+          title={c.newSignups}
           action={
             <Link href="/admin/kullanicilar" className="text-sm font-bold text-blood-500 hover:underline">
-              Tümü →
+              {c.seeAll}
             </Link>
           }
         >
@@ -225,14 +237,14 @@ export default async function AdminHome() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{u.name}</p>
                     <p className="text-xs text-muted">
-                      @{u.username} · {timeAgo(u.createdAt)}
+                      @{u.username} · {timeAgo(u.createdAt, locale)}
                     </p>
                   </div>
                   <Badge>{u.role}</Badge>
                 </li>
               ))}
               {d.recentUsers.length === 0 && (
-                <li className="p-6 text-center text-sm text-muted">Henüz kullanıcı yok</li>
+                <li className="p-6 text-center text-sm text-muted">{c.noUsers}</li>
               )}
             </ul>
           </Card>

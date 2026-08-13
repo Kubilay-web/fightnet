@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import {
   MapPin, Phone, Mail, Globe, Star, Users, Clock,
@@ -16,7 +16,9 @@ import { ReportButton } from "@/components/report-button";
 import { GymReviewForm } from "@/components/gym-review-form";
 import { cld } from "@/lib/image";
 import { cn, compact, timeAgo } from "@/lib/utils";
-import { DISCIPLINE_LABEL, SKILL_LABEL, WEEKDAYS, WEEKDAYS_SHORT } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { labelsFor } from "@/lib/i18n/labels";
+import { gymsCopy } from "@/lib/i18n/pages/gyms";
 
 export const revalidate = 180;
 
@@ -67,28 +69,38 @@ async function loadGym(slug: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const g = await loadGym(slug);
-  if (!g) return { title: "Salon bulunamadı" };
+  const [g, locale] = await Promise.all([loadGym(slug), getLocale()]);
+  const c = gymsCopy[locale].detail;
+  const alternates = await metadataAlternates(`/salonlar/${slug}`);
+  if (!g) return { title: c.notFound, alternates };
+  const L = labelsFor(locale);
   return {
     title: `${g.name} — ${g.city}`,
     description:
       g.description?.slice(0, 155) ??
-      `${g.name}, ${g.city} — ${g.disciplines.map((d) => DISCIPLINE_LABEL[d]).join(", ")}. Deneme antrenmanı için rezervasyon yap.`,
+      c.metaDescription
+        .replace("{name}", g.name)
+        .replace("{city}", g.city)
+        .replace("{disciplines}", g.disciplines.map((d) => L.discipline[d]).join(", ")),
+    alternates,
     openGraph: { images: g.coverUrl ? [{ url: cld(g.coverUrl, { w: 1200, h: 630 }) }] : undefined },
   };
 }
 
 export default async function GymPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const [g, session] = await Promise.all([loadGym(slug), getSession()]);
+  const [g, session, locale] = await Promise.all([loadGym(slug), getSession(), getLocale()]);
   if (!g) notFound();
+
+  const c = gymsCopy[locale].detail;
+  const L = labelsFor(locale);
 
   // Kullanıcının kendi değerlendirmesi — formda önceden dolu gelir
   const myReview = session ? (g.reviews.find((r) => r.userId === session.sub) ?? null) : null;
 
   const gallery = (g.gallery ?? []) as { url: string; publicId?: string }[];
   const hours = (g.openingHours ?? {}) as Record<string, { open: string; close: string }[]>;
-  const byDay = WEEKDAYS.map((_, i) => g.classes.filter((c) => c.weekday === i));
+  const byDay = L.weekdays.map((_, i) => g.classes.filter((cl) => cl.weekday === i));
 
   return (
     <>
@@ -122,8 +134,8 @@ export default async function GymPage({ params }: { params: Params }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-2xl font-black sm:text-4xl">{g.name}</h1>
               {g.isVerified && <VerifiedMark level="LEVEL_2" />}
-              {g.isHalo && <Badge tone="gold">Halo Salon</Badge>}
-              {g.isFounder && <Badge tone="gold">Kurucu Salon</Badge>}
+              {g.isHalo && <Badge tone="gold">{c.haloGym}</Badge>}
+              {g.isFounder && <Badge tone="gold">{c.founderGym}</Badge>}
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
               <span className="flex items-center gap-1">
@@ -132,7 +144,7 @@ export default async function GymPage({ params }: { params: Params }) {
               </span>
               <span className="flex items-center gap-1">
                 <Users className="size-3.5" />
-                {compact(g._count.memberships)} üye
+                {compact(g._count.memberships)} {c.members}
               </span>
               {g.ratingCount > 0 && (
                 <span className="flex items-center gap-1">
@@ -151,7 +163,7 @@ export default async function GymPage({ params }: { params: Params }) {
         <div className="mt-4 flex flex-wrap gap-1.5">
           {g.disciplines.map((d) => (
             <Badge key={d} tone="red">
-              {DISCIPLINE_LABEL[d]}
+              {L.discipline[d]}
             </Badge>
           ))}
         </div>
@@ -161,7 +173,7 @@ export default async function GymPage({ params }: { params: Params }) {
             {g.description && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">Salon Hakkında</h2>
+                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">{c.about}</h2>
                   <p className="whitespace-pre-line text-sm leading-relaxed">{g.description}</p>
                 </CardBody>
               </Card>
@@ -178,13 +190,13 @@ export default async function GymPage({ params }: { params: Params }) {
             )}
 
             {/* Ders programı */}
-            <Section title="Ders Programı">
+            <Section title={c.schedule}>
               {g.classes.length === 0 ? (
-                <EmptyState title="Program henüz eklenmemiş" description="Salon yakında ders programını paylaşacak." />
+                <EmptyState title={c.noScheduleTitle} description={c.noScheduleBody} />
               ) : (
                 <div className="no-scrollbar overflow-x-auto">
                   <div className="grid min-w-[720px] grid-cols-7 gap-2">
-                    {WEEKDAYS_SHORT.map((day, i) => (
+                    {L.weekdaysShort.map((day, i) => (
                       <div key={day} className="flex flex-col gap-2">
                         {/* Sticky değil: kolonlar kısa, yapışan başlık ilk
                             dersin adını örtüyordu (mobilde okunmaz oluyor). */}
@@ -192,17 +204,17 @@ export default async function GymPage({ params }: { params: Params }) {
                           {day}
                         </p>
                         {byDay[i].length === 0 && <p className="text-center text-xs text-muted">—</p>}
-                        {byDay[i].map((c) => (
-                          <div key={c.id} className="surface rounded-xl p-2.5">
+                        {byDay[i].map((cl) => (
+                          <div key={cl.id} className="surface rounded-xl p-2.5">
                             <p className="text-xs font-black tabular-nums text-blood-500">
-                              {c.startTime}–{c.endTime}
+                              {cl.startTime}–{cl.endTime}
                             </p>
-                            <p className="mt-0.5 truncate text-xs font-bold">{c.name}</p>
+                            <p className="mt-0.5 truncate text-xs font-bold">{cl.name}</p>
                             <p className="truncate text-[11px] text-muted">
-                              {DISCIPLINE_LABEL[c.discipline]} · {SKILL_LABEL[c.level]}
+                              {L.discipline[cl.discipline]} · {L.skill[cl.level]}
                             </p>
-                            {c.coachName && <p className="truncate text-[11px] text-muted">{c.coachName}</p>}
-                            {c.isTrialOk && <Badge tone="green" className="mt-1">Deneme OK</Badge>}
+                            {cl.coachName && <p className="truncate text-[11px] text-muted">{cl.coachName}</p>}
+                            {cl.isTrialOk && <Badge tone="green" className="mt-1">{c.trialOk}</Badge>}
                           </div>
                         ))}
                       </div>
@@ -214,27 +226,27 @@ export default async function GymPage({ params }: { params: Params }) {
 
             {/* Antrenörler */}
             {g.coaches.length > 0 && (
-              <Section title="Antrenörler">
+              <Section title={c.coaches}>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {g.coaches.map((c) => (
+                  {g.coaches.map((co) => (
                     <Link
-                      key={c.user.slug}
-                      href={`/dovuscular/${c.user.slug}`}
+                      key={co.user.slug}
+                      href={`/dovuscular/${co.user.slug}`}
                       className="surface flex items-center gap-3 rounded-2xl p-3 transition-colors hover:border-blood-500/40"
                     >
-                      <Avatar src={c.user.avatarUrl} name={c.user.name} size="lg" />
+                      <Avatar src={co.user.avatarUrl} name={co.user.name} size="lg" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1">
-                          <p className="truncate font-bold">{c.user.name}</p>
-                          <VerifiedMark level={c.user.verification} />
+                          <p className="truncate font-bold">{co.user.name}</p>
+                          <VerifiedMark level={co.user.verification} />
                         </div>
                         <p className="truncate text-xs text-muted">
-                          {c.title ?? "Antrenör"}
-                          {c.isHead && " · Baş Antrenör"}
+                          {co.title ?? c.coachFallbackTitle}
+                          {co.isHead && ` · ${c.headCoach}`}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {c.disciplines.slice(0, 2).map((d) => (
-                            <Badge key={d}>{DISCIPLINE_LABEL[d]}</Badge>
+                          {co.disciplines.slice(0, 2).map((d) => (
+                            <Badge key={d}>{L.discipline[d]}</Badge>
                           ))}
                         </div>
                       </div>
@@ -246,11 +258,13 @@ export default async function GymPage({ params }: { params: Params }) {
 
             {/* Değerlendirmeler */}
             <Section
-              title="Değerlendirmeler"
+              title={c.reviews}
               subtitle={
                 g.ratingCount > 0
-                  ? `${g.ratingAvg.toFixed(1)} / 5 · ${g.ratingCount} değerlendirme`
-                  : "Henüz değerlendirme yok — ilk sen yaz"
+                  ? c.reviewSummary
+                      .replace("{avg}", g.ratingAvg.toFixed(1))
+                      .replace("{count}", String(g.ratingCount))
+                  : c.noReviews
               }
             >
               <div className="flex flex-col gap-3">
@@ -264,7 +278,7 @@ export default async function GymPage({ params }: { params: Params }) {
                             {r.user.name}
                           </Link>
                           <VerifiedMark level={r.user.verification} />
-                          <span className="text-xs font-normal text-muted">{timeAgo(r.createdAt)}</span>
+                          <span className="text-xs font-normal text-muted">{timeAgo(r.createdAt, locale)}</span>
                         </p>
                         <div className="mt-1 flex gap-0.5">
                           {Array.from({ length: 5 }).map((_, i) => (
@@ -301,17 +315,14 @@ export default async function GymPage({ params }: { params: Params }) {
                 <CardBody className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <CalendarPlus className="size-5 text-blood-500" />
-                    <h2 className="font-bold">Deneme Antrenmanı</h2>
+                    <h2 className="font-bold">{c.trialTitle}</h2>
                   </div>
-                  <p className="text-sm text-muted">
-                    İlk kez mi geliyorsun? Deneme antrenmanı için özel akışla kayıt ol —
-                    salon seni bekliyor olacak.
-                  </p>
+                  <p className="text-sm text-muted">{c.trialBody}</p>
                   <TrialBookingForm
                     gymId={g.id}
-                    classes={g.classes.filter((c) => c.isTrialOk).map((c) => ({
-                      id: c.id,
-                      label: `${WEEKDAYS_SHORT[c.weekday]} ${c.startTime} · ${c.name}`,
+                    classes={g.classes.filter((cl) => cl.isTrialOk).map((cl) => ({
+                      id: cl.id,
+                      label: `${L.weekdaysShort[cl.weekday]} ${cl.startTime} · ${cl.name}`,
                     }))}
                     authed={!!session}
                     dropInPrice={g.dropInPrice}
@@ -323,7 +334,7 @@ export default async function GymPage({ params }: { params: Params }) {
             {/* İletişim */}
             <Card>
               <CardBody className="flex flex-col gap-3">
-                <h2 className="text-xs font-black uppercase tracking-wider text-muted">İletişim</h2>
+                <h2 className="text-xs font-black uppercase tracking-wider text-muted">{c.contact}</h2>
                 {g.phone && (
                   <a href={`tel:${g.phone}`} className="flex items-center gap-2 text-sm hover:text-blood-500">
                     <Phone className="size-4 shrink-0" /> {g.phone}
@@ -336,7 +347,7 @@ export default async function GymPage({ params }: { params: Params }) {
                 )}
                 {g.website && (
                   <a href={g.website} target="_blank" rel="noopener nofollow" className="flex items-center gap-2 truncate text-sm hover:text-blood-500">
-                    <Globe className="size-4 shrink-0" /> Web sitesi
+                    <Globe className="size-4 shrink-0" /> {c.website}
                   </a>
                 )}
                 {g.lat && g.lng && (
@@ -346,7 +357,7 @@ export default async function GymPage({ params }: { params: Params }) {
                     rel="noopener"
                     className="flex items-center gap-2 text-sm hover:text-blood-500"
                   >
-                    <MapPin className="size-4 shrink-0" /> Yol tarifi al
+                    <MapPin className="size-4 shrink-0" /> {c.directions}
                   </a>
                 )}
               </CardBody>
@@ -357,16 +368,16 @@ export default async function GymPage({ params }: { params: Params }) {
               <Card>
                 <CardBody>
                   <h2 className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted">
-                    <Clock className="size-3.5" /> Açılış Saatleri
+                    <Clock className="size-3.5" /> {c.openingHours}
                   </h2>
                   <dl className="flex flex-col gap-1 text-sm">
-                    {WEEKDAYS.map((day, i) => {
+                    {L.weekdays.map((day, i) => {
                       const slots = hours[String(i)] ?? [];
                       return (
                         <div key={day} className="flex justify-between gap-2">
                           <dt className="text-muted">{day}</dt>
                           <dd className="font-semibold tabular-nums">
-                            {slots.length ? slots.map((s) => `${s.open}–${s.close}`).join(", ") : "Kapalı"}
+                            {slots.length ? slots.map((s) => `${s.open}–${s.close}`).join(", ") : c.closed}
                           </dd>
                         </div>
                       );
@@ -380,7 +391,7 @@ export default async function GymPage({ params }: { params: Params }) {
             {g.amenities.length > 0 && (
               <Card>
                 <CardBody>
-                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">Olanaklar</h2>
+                  <h2 className="mb-2 text-xs font-black uppercase tracking-wider text-muted">{c.amenities}</h2>
                   <ul className="grid grid-cols-2 gap-1.5">
                     {g.amenities.map((a) => (
                       <li key={a} className="flex items-center gap-1.5 text-sm">

@@ -1,11 +1,14 @@
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { MapPin, Users, Star, CalendarDays, Ticket, Play, Heart, MessageCircle } from "lucide-react";
 import { Avatar, VerifiedMark, FounderMark } from "@/components/ui/avatar";
 import { Badge, LiveBadge, Card } from "@/components/ui";
 import { cld, videoPoster } from "@/lib/image";
 import { cn, formatRecord, formatDateTime, compact, truncate, timeAgo, disciplineGradient } from "@/lib/utils";
-import { DISCIPLINE_LABEL, SKILL_LABEL, BELT_COLOR, BELT_LABEL, EVENT_TYPE_LABEL } from "@/lib/constants";
+import { BELT_COLOR } from "@/lib/constants";
+import { getDict, getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { labelsFor, type EventTypeKey } from "@/lib/i18n/labels";
 import type { Discipline, SkillLevel, BeltRank, VerificationLevel, EventStatus, EventType, PostType } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +39,9 @@ export interface FighterCardData {
   }[];
 }
 
-export function FighterCard({ f, priority }: { f: FighterCardData; priority?: boolean }) {
+export async function FighterCard({ f, priority }: { f: FighterCardData; priority?: boolean }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
   const primary = f.sportProfiles[0];
   return (
     <Card hover className="group overflow-hidden">
@@ -45,7 +50,7 @@ export function FighterCard({ f, priority }: { f: FighterCardData; priority?: bo
           <div className="absolute inset-0 grid-lines opacity-20" />
           {primary?.isPro && (
             <span className="absolute right-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">
-              Pro
+              {d.cards.pro}
             </span>
           )}
         </div>
@@ -62,15 +67,15 @@ export function FighterCard({ f, priority }: { f: FighterCardData; priority?: bo
 
           {primary && (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-              <Badge tone="red">{DISCIPLINE_LABEL[primary.discipline]}</Badge>
-              <Badge>{SKILL_LABEL[primary.level]}</Badge>
+              <Badge tone="red">{L.discipline[primary.discipline]}</Badge>
+              <Badge>{L.skill[primary.level]}</Badge>
               {primary.belt !== "NONE" && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
                   style={{ background: `${BELT_COLOR[primary.belt]}22`, color: BELT_COLOR[primary.belt] }}
                 >
                   <span className="size-2 rounded-full" style={{ background: BELT_COLOR[primary.belt] }} />
-                  {BELT_LABEL[primary.belt]}
+                  {L.belt[primary.belt]}
                 </span>
               )}
             </div>
@@ -99,7 +104,9 @@ export function FighterCard({ f, priority }: { f: FighterCardData; priority?: bo
   );
 }
 
-export function FighterRow({ f }: { f: FighterCardData }) {
+export async function FighterRow({ f }: { f: FighterCardData }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
   const primary = f.sportProfiles[0];
   return (
     <Link
@@ -113,7 +120,7 @@ export function FighterRow({ f }: { f: FighterCardData }) {
           <VerifiedMark level={f.verification} />
         </div>
         <p className="truncate text-xs text-muted">
-          {primary ? DISCIPLINE_LABEL[primary.discipline] : "Sporcu"}
+          {primary ? L.discipline[primary.discipline] : d.cards.athlete}
           {f.city ? ` · ${f.city}` : ""}
         </p>
       </div>
@@ -149,7 +156,9 @@ export interface GymCardData {
   distanceKm?: number;
 }
 
-export function GymCard({ g, priority }: { g: GymCardData; priority?: boolean }) {
+export async function GymCard({ g, priority }: { g: GymCardData; priority?: boolean }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
   return (
     <Card hover className="group overflow-hidden">
       <Link href={`/salonlar/${g.slug}`}>
@@ -170,9 +179,9 @@ export function GymCard({ g, priority }: { g: GymCardData; priority?: boolean })
           )}
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent" />
           <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-            {g.isHalo && <Badge tone="gold">Halo</Badge>}
-            {g.isFounder && <Badge tone="gold">Kurucu Salon</Badge>}
-            {g.trialEnabled && <Badge tone="green">Deneme Ücretsiz</Badge>}
+            {g.isHalo && <Badge tone="gold">{d.cards.halo}</Badge>}
+            {g.isFounder && <Badge tone="gold">{d.cards.founderGym}</Badge>}
+            {g.trialEnabled && <Badge tone="green">{d.cards.freeTrial}</Badge>}
           </div>
         </div>
 
@@ -198,8 +207,8 @@ export function GymCard({ g, priority }: { g: GymCardData; priority?: boolean })
           </div>
 
           <div className="mt-3 flex flex-wrap gap-1">
-            {g.disciplines.slice(0, 3).map((d) => (
-              <Badge key={d}>{DISCIPLINE_LABEL[d]}</Badge>
+            {g.disciplines.slice(0, 3).map((dis) => (
+              <Badge key={dis}>{L.discipline[dis]}</Badge>
             ))}
             {g.disciplines.length > 3 && <Badge>+{g.disciplines.length - 3}</Badge>}
           </div>
@@ -207,7 +216,7 @@ export function GymCard({ g, priority }: { g: GymCardData; priority?: boolean })
           <div className="mt-3 flex items-center gap-4 border-t border-[var(--border)] pt-3 text-xs text-muted">
             <span className="flex items-center gap-1">
               <Users className="size-3.5" />
-              {compact(g.memberCount)} üye
+              {compact(g.memberCount)} {d.cards.members}
             </span>
             {g.ratingCount > 0 && (
               <span className="flex items-center gap-1">
@@ -242,7 +251,9 @@ export interface EventCardData {
   _count?: { fights: number };
 }
 
-export function EventCard({ e, priority }: { e: EventCardData; priority?: boolean }) {
+export async function EventCard({ e, priority }: { e: EventCardData; priority?: boolean }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
   return (
     <Card hover className="group overflow-hidden">
       <Link href={`/etkinlikler/${e.slug}`} className="flex gap-0 sm:block">
@@ -262,13 +273,13 @@ export function EventCard({ e, priority }: { e: EventCardData; priority?: boolea
             </div>
           )}
           <div className="absolute left-2 top-2">
-            {e.status === "LIVE" ? <LiveBadge /> : <Badge tone="neutral">{EVENT_TYPE_LABEL[e.type]}</Badge>}
+            {e.status === "LIVE" ? <LiveBadge /> : <Badge tone="neutral">{L.eventType[e.type as EventTypeKey]}</Badge>}
           </div>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-blood-500">
-            {formatDateTime(e.startsAt)}
+            {formatDateTime(e.startsAt, LOCALE_TAG[locale])}
           </p>
           <h3 className="mt-1 line-clamp-2-safe font-bold leading-snug">{e.title}</h3>
           <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted">
@@ -277,7 +288,7 @@ export function EventCard({ e, priority }: { e: EventCardData; priority?: boolea
           </p>
 
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-3 text-xs text-muted">
-            {!!e._count?.fights && <span>{e._count.fights} müsabaka</span>}
+            {!!e._count?.fights && <span>{e._count.fights} {d.cards.fights}</span>}
             {e.ticketPrice != null && e.ticketPrice > 0 && (
               <span className="flex items-center gap-1">
                 <Ticket className="size-3.5" />
@@ -313,7 +324,9 @@ export interface PostCardData {
   };
 }
 
-export function PostCard({ p, priority }: { p: PostCardData; priority?: boolean }) {
+export async function PostCard({ p, priority }: { p: PostCardData; priority?: boolean }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
   const poster = p.thumbUrl ?? (p.type === "VIDEO" ? videoPoster(p.mediaUrl) : p.mediaUrl);
   return (
     <Card hover className="group overflow-hidden">
@@ -322,7 +335,7 @@ export function PostCard({ p, priority }: { p: PostCardData; priority?: boolean 
           <div className="relative aspect-square overflow-hidden bg-ink-200 dark:bg-ink-800">
             <Image
               src={cld(poster, { w: 600, h: 600 })}
-              alt={p.body ? truncate(p.body, 60) : "Gönderi"}
+              alt={p.body ? truncate(p.body, 60) : d.cards.post}
               fill
               priority={priority}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
@@ -350,7 +363,7 @@ export function PostCard({ p, priority }: { p: PostCardData; priority?: boolean 
             <Avatar src={p.user.avatarUrl} name={p.user.name} size="xs" />
             <span className="truncate text-xs font-bold">{p.user.name}</span>
             <VerifiedMark level={p.user.verification} />
-            <span className="ml-auto shrink-0 text-[11px] text-muted">{timeAgo(p.createdAt)}</span>
+            <span className="ml-auto shrink-0 text-[11px] text-muted">{timeAgo(p.createdAt, locale)}</span>
           </div>
           {p.body && <p className="mt-2 line-clamp-2-safe text-sm text-muted">{p.body}</p>}
           <div className="mt-2 flex items-center gap-3 text-xs text-muted">
@@ -362,7 +375,7 @@ export function PostCard({ p, priority }: { p: PostCardData; priority?: boolean 
               <MessageCircle className="size-3.5" />
               {compact(p.commentCount)}
             </span>
-            {p.discipline && <Badge tone="red" className="ml-auto">{DISCIPLINE_LABEL[p.discipline]}</Badge>}
+            {p.discipline && <Badge tone="red" className="ml-auto">{L.discipline[p.discipline]}</Badge>}
           </div>
         </div>
       </Link>

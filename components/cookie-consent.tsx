@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Cookie, SlidersHorizontal } from "lucide-react";
 import { Button, Switch } from "@/components/ui";
+import { useDict } from "@/components/i18n/provider";
 
 /**
  * §5.7 / §11.4 — "Granüler izin ile çerez banner'ı".
@@ -77,6 +78,8 @@ function hasValidConsent(): boolean {
 }
 
 export function CookieConsent() {
+  const t = useDict().consent;
+
   // Sunucu anlık görüntüsü "karar verilmiş" der: banner HTML'e gömülmez,
   // hidrasyondan hemen sonra gerçek durum okunur. İzin vermiş kullanıcı
   // hiçbir an banner görmez, yeni ziyaretçide bir kare gecikmeyle açılır.
@@ -123,13 +126,12 @@ export function CookieConsent() {
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="consent-title" className="font-display text-lg font-black tracking-tight">
-              Gizliliğin senin kontrolünde
+              {t.title}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Oturum ve güvenlik için gereken çerezler olmadan platform çalışmaz. Diğer her şey
-              tamamen sana bağlı — hiçbirini açmadan da FIGHTNET&apos;i tam olarak kullanabilirsin.{" "}
+              {t.body}{" "}
               <Link href="/gizlilik" className="font-semibold text-blood-500 hover:underline">
-                Gizlilik açıklaması
+                {t.privacyLink}
               </Link>
             </p>
 
@@ -137,10 +139,10 @@ export function CookieConsent() {
               <div className="mt-4 flex flex-col gap-3 rounded-xl border border-[var(--border)] p-3">
                 <div className="flex items-center justify-between gap-3 opacity-70">
                   <div>
-                    <p className="text-sm font-bold">Zorunlu</p>
-                    <p className="text-xs text-muted">Oturum, güvenlik, hız sınırlama. Devre dışı bırakılamaz.</p>
+                    <p className="text-sm font-bold">{t.necessary}</p>
+                    <p className="text-xs text-muted">{t.necessaryBody}</p>
                   </div>
-                  <span className="text-xs font-bold uppercase text-emerald-500">Her zaman açık</span>
+                  <span className="text-xs font-bold uppercase text-emerald-500">{t.alwaysOn}</span>
                 </div>
 
                 <Switch
@@ -148,10 +150,8 @@ export function CookieConsent() {
                   onChange={(e) => setAnalytics(e.target.checked)}
                   label={
                     <span>
-                      <span className="block text-sm font-bold">Ölçüm</span>
-                      <span className="block text-xs text-muted">
-                        Hangi özelliklerin işe yaradığını anlamak için anonim kullanım istatistiği.
-                      </span>
+                      <span className="block text-sm font-bold">{t.analytics}</span>
+                      <span className="block text-xs text-muted">{t.analyticsBody}</span>
                     </span>
                   }
                 />
@@ -161,10 +161,8 @@ export function CookieConsent() {
                   onChange={(e) => setMarketing(e.target.checked)}
                   label={
                     <span>
-                      <span className="block text-sm font-bold">Reklam</span>
-                      <span className="block text-xs text-muted">
-                        Dövüş sporu markalarının banner&apos;ları kişiselleştirilir. Spor bahis reklamı asla gösterilmez.
-                      </span>
+                      <span className="block text-sm font-bold">{t.marketing}</span>
+                      <span className="block text-xs text-muted">{t.marketingBody}</span>
                     </span>
                   }
                 />
@@ -174,10 +172,8 @@ export function CookieConsent() {
                   onChange={(e) => setHealth(e.target.checked)}
                   label={
                     <span>
-                      <span className="block text-sm font-bold">Sağlık verileri</span>
-                      <span className="block text-xs text-muted">
-                        Kilo takibi ve akıllı saat senkronu. KVKK md. 9 kapsamında ayrı izin gerektirir.
-                      </span>
+                      <span className="block text-sm font-bold">{t.health}</span>
+                      <span className="block text-xs text-muted">{t.healthBody}</span>
                     </span>
                   }
                 />
@@ -186,19 +182,19 @@ export function CookieConsent() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Button size="sm" onClick={() => save({ analytics: true, marketing: true, health: true })}>
-                Tümünü kabul et
+                {t.acceptAll}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => (details ? save({ analytics, marketing, health }) : save({ analytics: false, marketing: false, health: false }))}
               >
-                {details ? "Seçimimi kaydet" : "Yalnızca zorunlu"}
+                {details ? t.saveChoice : t.necessaryOnly}
               </Button>
               {!details && (
                 <Button size="sm" variant="ghost" onClick={() => setDetails(true)}>
                   <SlidersHorizontal className="size-4" />
-                  Ayarla
+                  {t.customize}
                 </Button>
               )}
             </div>
@@ -211,13 +207,15 @@ export function CookieConsent() {
 
 /** Altbilgiden izin tercihlerini yeniden açmak için */
 export function ConsentSettingsLink({ className }: { className?: string }) {
+  const t = useDict().consent;
+
   return (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new CustomEvent("fn-consent-open"))}
       className={className}
     >
-      Çerez tercihleri
+      {t.settingsLink}
     </button>
   );
 }

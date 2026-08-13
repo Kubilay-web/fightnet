@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Sparkles, Trash2 } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -8,13 +8,21 @@ import { deleteSpotlight } from "@/app/admin/actions";
 import { Avatar, VerifiedMark } from "@/components/ui/avatar";
 import { Card, CardBody, Section, EmptyState } from "@/components/ui";
 import { SpotlightForm } from "@/components/spotlight-form";
-import { formatDate } from "@/lib/utils";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { adminSpotlightCopy } from "@/lib/i18n/pages/admin-ops";
 
-export const metadata: Metadata = { title: "Spotlight", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = adminSpotlightCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminSpotlightPage() {
   await requireAdmin();
+  const locale = await getLocale();
+  const t = adminSpotlightCopy[locale];
 
   const spotlights = await safe(
     () =>
@@ -31,10 +39,7 @@ export default async function AdminSpotlightPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Section
-        title="Günün Sporcusu"
-        subtitle="Ana sayfada öne çıkarılacak sporcuyu belirle (§4.1 Spotlight)"
-      >
+      <Section title={t.title} subtitle={t.subtitle}>
         <Card>
           <CardBody>
             <SpotlightForm />
@@ -42,9 +47,9 @@ export default async function AdminSpotlightPage() {
         </Card>
       </Section>
 
-      <Section title="Planlanmış Spotlight'lar">
+      <Section title={t.scheduled}>
         {spotlights.length === 0 ? (
-          <EmptyState icon={<Sparkles className="size-10" />} title="Henüz spotlight yok" />
+          <EmptyState icon={<Sparkles className="size-10" />} title={t.empty} />
         ) : (
           <Card>
             <ul className="divide-y divide-[var(--border)]">
@@ -53,7 +58,7 @@ export default async function AdminSpotlightPage() {
                   <span className="flex size-11 shrink-0 flex-col items-center justify-center rounded-xl bg-gold-500/10 text-gold-600 dark:text-gold-400">
                     <span className="text-sm font-black leading-none">{s.date.getDate()}</span>
                     <span className="text-[10px] font-bold uppercase">
-                      {s.date.toLocaleDateString("tr-TR", { month: "short" })}
+                      {s.date.toLocaleDateString(LOCALE_TAG[locale], { month: "short" })}
                     </span>
                   </span>
 
@@ -73,7 +78,7 @@ export default async function AdminSpotlightPage() {
                   <form action={deleteSpotlight.bind(null, s.id)}>
                     <button
                       type="submit"
-                      aria-label="Sil"
+                      aria-label={t.delete}
                       className="rounded-lg p-2 text-muted transition-colors hover:bg-blood-500/10 hover:text-blood-500"
                     >
                       <Trash2 className="size-4" />

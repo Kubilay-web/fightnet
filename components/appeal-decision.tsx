@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { resolveAppeal } from "@/app/admin/actions";
+import { useLocale } from "@/components/i18n/provider";
 import { Button, Textarea, Alert } from "@/components/ui";
+import { appealDecisionCopy } from "@/lib/i18n/pages/admin-forms";
 
 /** §11.5 — İtiraz kararı. Gerekçe kullanıcıya aynen iletilir. */
 export function AppealDecision({ id }: { id: string }) {
+  const t = appealDecisionCopy[useLocale()];
   const [decision, setDecision] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -14,7 +17,7 @@ export function AppealDecision({ id }: { id: string }) {
   function submit(status: "UPHELD" | "OVERTURNED" | "DISMISSED") {
     setError(null);
     if (decision.trim().length < 10) {
-      setError("Karar gerekçesi en az 10 karakter olmalı — kullanıcı bu metni okuyacak.");
+      setError(t.tooShort);
       return;
     }
     start(async () => {
@@ -31,17 +34,17 @@ export function AppealDecision({ id }: { id: string }) {
         onChange={(e) => setDecision(e.target.value)}
         rows={2}
         maxLength={1000}
-        placeholder="Kararın gerekçesi — kullanıcıya bildirim olarak gider"
+        placeholder={t.placeholder}
       />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" disabled={pending} onClick={() => submit("OVERTURNED")}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : "Kararı geri al"}
+          {pending ? <Loader2 className="size-4 animate-spin" /> : t.overturn}
         </Button>
         <Button size="sm" variant="danger" disabled={pending} onClick={() => submit("UPHELD")}>
-          Kararı koru
+          {t.uphold}
         </Button>
         <Button size="sm" variant="ghost" disabled={pending} onClick={() => submit("DISMISSED")}>
-          İşleme alma
+          {t.dismiss}
         </Button>
       </div>
     </div>

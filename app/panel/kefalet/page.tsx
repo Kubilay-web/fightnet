@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Users, ShieldCheck, XCircle } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -10,12 +10,21 @@ import { Badge, Card, CardBody, Section, EmptyState, Alert, Button } from "@/com
 import { VouchForm } from "@/components/vouch-form";
 import { formatDate } from "@/lib/utils";
 import { MAX_VOUCHES_PER_COACH } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { vouchCopy } from "@/lib/i18n/pages/panel-trust";
 
-export const metadata: Metadata = { title: "Kefaletlerim", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = vouchCopy[await getLocale()];
+  return { title: copy.meta.title, robots: { index: false } };
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function VouchPage() {
   const user = await requireUser();
+  const locale = await getLocale();
+  const copy = vouchCopy[locale];
 
   const vouches = await safe(
     () =>
@@ -41,21 +50,19 @@ export default async function VouchPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <Section
-        title="Antrenör Kefaleti"
-        subtitle="Doğrulanmış antrenörler 20 amatör öğrencisine kadar kefil olabilir (§4.5)"
-      >
-        <Alert tone="blue" title="Nasıl çalışır">
-          Kefil olduğun sporcu otomatik Seviye 1 doğrulanmış olur ve sparring araması açılır.
-          <b> İtibarınla sorumlusun</b> — sahte kefalet durumunda antrenör statün geri alınır.
+      <Section title={copy.title} subtitle={copy.subtitle}>
+        <Alert tone="blue" title={copy.how.title}>
+          {copy.how.body1}
+          <b>{copy.how.reputation}</b>
+          {copy.how.body2}
         </Alert>
       </Section>
 
       {!canVouch ? (
-        <Alert tone="amber" title="Kefalet için Seviye 2 antrenör olmalısın">
-          Antrenör lisansını yükleyip durum doğrulamasını tamamla.{" "}
+        <Alert tone="amber" title={copy.needLevel2.title}>
+          {copy.needLevel2.body}{" "}
           <Link href="/panel/dogrulama" className="font-bold underline">
-            Doğrulamayı başlat
+            {copy.needLevel2.link}
           </Link>
         </Alert>
       ) : (
@@ -63,7 +70,7 @@ export default async function VouchPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Card>
               <CardBody>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Aktif kefalet</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted">{copy.stats.active}</p>
                 <p className="mt-1 text-2xl font-black tabular-nums">
                   {active.length} <span className="text-base text-muted">/ {MAX_VOUCHES_PER_COACH}</span>
                 </p>
@@ -71,14 +78,14 @@ export default async function VouchPage() {
             </Card>
             <Card>
               <CardBody>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Kalan hak</p>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-muted">{copy.stats.remaining}</p>
                 <p className="mt-1 text-2xl font-black tabular-nums text-emerald-500">{remaining}</p>
               </CardBody>
             </Card>
           </div>
 
           {remaining > 0 && (
-            <Section title="Yeni Kefalet">
+            <Section title={copy.newTitle}>
               <Card>
                 <CardBody>
                   <VouchForm />
@@ -89,12 +96,12 @@ export default async function VouchPage() {
         </>
       )}
 
-      <Section title="Kefil Olduğum Sporcular">
+      <Section title={copy.listTitle}>
         {vouches.length === 0 ? (
           <EmptyState
             icon={<Users className="size-10" />}
-            title="Henüz kefalet yok"
-            description="Öğrencilerinin kullanıcı adını girerek onları doğrula."
+            title={copy.empty.title}
+            description={copy.empty.description}
           />
         ) : (
           <Card>
@@ -111,19 +118,23 @@ export default async function VouchPage() {
                     </div>
                     <p className="text-xs text-muted">
                       @{v.athlete.username}
-                      {v.athlete.city && ` · ${v.athlete.city}`} · {formatDate(v.createdAt)}
+                      {v.athlete.city && ` · ${v.athlete.city}`} · {formatDate(v.createdAt, LOCALE_TAG[locale])}
                     </p>
                     {v.note && <p className="mt-1 text-xs">{v.note}</p>}
                   </div>
 
                   <Badge tone={v.status === "ACCEPTED" ? "green" : "neutral"}>
-                    {v.status === "ACCEPTED" ? "Aktif" : v.status === "REVOKED" ? "Geri alındı" : v.status}
+                    {v.status === "ACCEPTED"
+                      ? copy.status.active
+                      : v.status === "REVOKED"
+                        ? copy.status.revoked
+                        : v.status}
                   </Badge>
 
                   {v.status === "ACCEPTED" && (
                     <form action={revokeVouch.bind(null, v.id)}>
                       <Button type="submit" size="sm" variant="outline">
-                        <XCircle className="size-4" /> Geri Al
+                        <XCircle className="size-4" /> {copy.revoke}
                       </Button>
                     </form>
                   )}

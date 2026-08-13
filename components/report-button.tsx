@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Flag, Loader2, CheckCircle2 } from "lucide-react";
 import { Button, Select, Textarea, Field } from "@/components/ui";
 import { REPORT_REASON_LABEL } from "@/lib/constants";
+import { useLocale } from "@/components/i18n/provider";
+import { localizePath } from "@/lib/i18n/config";
+import { reportCopy } from "@/lib/i18n/pages/panel-trust";
 
 /** §11.3 — Tüm içerikler için rapor butonu (Notice-and-Action) */
 export function ReportButton({
@@ -23,6 +26,8 @@ export function ReportButton({
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const router = useRouter();
+  const locale = useLocale();
+  const t = reportCopy[locale];
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,7 +50,7 @@ export function ReportButton({
 
   function onClick() {
     if (!authed) {
-      router.push("/giris");
+      router.push(localizePath("/giris", locale));
       return;
     }
     setOpen(true);
@@ -55,7 +60,7 @@ export function ReportButton({
     <>
       <button
         onClick={onClick}
-        aria-label="Bildir"
+        aria-label={t.report}
         className={
           compact
             ? "inline-flex size-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-ink-100 hover:text-blood-500 dark:hover:bg-ink-800"
@@ -63,7 +68,7 @@ export function ReportButton({
         }
       >
         <Flag className="size-4" />
-        {!compact && "Bildir"}
+        {!compact && t.report}
       </button>
 
       {open && (
@@ -73,17 +78,18 @@ export function ReportButton({
             {state === "done" ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <CheckCircle2 className="size-8 text-emerald-500" />
-                <p className="font-bold">Raporun alındı</p>
-                <p className="text-sm text-muted">24 saat içinde inceleyeceğiz.</p>
+                <p className="font-bold">{t.done.title}</p>
+                <p className="text-sm text-muted">{t.done.body}</p>
               </div>
             ) : (
               <form onSubmit={submit} className="flex flex-col gap-4">
-                <h2 className="text-lg font-black">İçeriği Bildir</h2>
-                <Field label="Sebep" required>
+                <h2 className="text-lg font-black">{t.modalTitle}</h2>
+                <Field label={t.reason.label} required>
                   <Select name="reason" required defaultValue="">
                     <option value="" disabled>
-                      Bir sebep seç
+                      {t.reason.select}
                     </option>
+                    {/* TODO(i18n): lib/i18n/labels.ts hazır olduğunda labelsFor(locale) ile değiştir */}
                     {Object.entries(REPORT_REASON_LABEL).map(([v, l]) => (
                       <option key={v} value={v}>
                         {l}
@@ -91,18 +97,18 @@ export function ReportButton({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Açıklama" hint="Ne gördüğünü kısaca anlat (opsiyonel)">
+                <Field label={t.description.label} hint={t.description.hint}>
                   <Textarea name="description" rows={3} maxLength={1000} />
                 </Field>
                 {state === "error" && (
-                  <p className="text-sm font-medium text-blood-500">Gönderilemedi, tekrar dene.</p>
+                  <p className="text-sm font-medium text-blood-500">{t.error}</p>
                 )}
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" full onClick={() => setOpen(false)}>
-                    Vazgeç
+                    {t.cancel}
                   </Button>
                   <Button type="submit" full disabled={state === "loading"}>
-                    {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : "Gönder"}
+                    {state === "loading" ? <Loader2 className="size-4 animate-spin" /> : t.submit}
                   </Button>
                 </div>
               </form>

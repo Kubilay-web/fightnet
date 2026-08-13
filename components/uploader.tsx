@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Upload, X, Loader2, ImageIcon, Video } from "lucide-react";
 import { cld } from "@/lib/image";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/components/i18n/provider";
 
 export interface UploadedAsset {
   url: string;
@@ -24,6 +25,7 @@ const MAX_VIDEO_MB = 200;
  * ilerleme yüzdesi XHR üzerinden anlık raporlanır.
  */
 export function useCloudinaryUpload(folder: string) {
+  const t = useDict().ui;
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function useCloudinaryUpload(folder: string) {
         });
         if (!signRes.ok) {
           const j = await signRes.json().catch(() => ({}));
-          throw new Error(j.error ?? "İmza alınamadı");
+          throw new Error(j.error ?? t.uploadSignFailed);
         }
         const sig = await signRes.json();
 
@@ -79,23 +81,23 @@ export function useCloudinaryUpload(folder: string) {
                 resourceType: r.resource_type,
               });
             } else {
-              reject(new Error("Yükleme başarısız"));
+              reject(new Error(t.uploadFailed));
             }
           };
-          xhr.onerror = () => reject(new Error("Ağ hatası"));
+          xhr.onerror = () => reject(new Error(t.uploadNetworkError));
           xhr.send(form);
         });
 
         return result;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Yükleme başarısız");
+        setError(e instanceof Error ? e.message : t.uploadFailed);
         return null;
       } finally {
         setUploading(false);
         setProgress(0);
       }
     },
-    [folder],
+    [folder, t.uploadFailed, t.uploadNetworkError, t.uploadSignFailed],
   );
 
   return { upload, uploading, progress, error };
@@ -105,7 +107,7 @@ export function ImageUploader({
   folder,
   value,
   onChange,
-  label = "Görsel yükle",
+  label,
   aspect = "aspect-video",
   accept = "image/*",
   className,
@@ -118,6 +120,7 @@ export function ImageUploader({
   accept?: string;
   className?: string;
 }) {
+  const t = useDict().ui;
   const { upload, uploading, progress, error } = useCloudinaryUpload(folder);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -143,7 +146,7 @@ export function ImageUploader({
             <button
               type="button"
               onClick={() => onChange(null)}
-              aria-label="Kaldır"
+              aria-label={t.uploadRemove}
               className="absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur transition-colors hover:bg-blood-600"
             >
               <X className="size-4" />
@@ -165,7 +168,7 @@ export function ImageUploader({
               <>
                 {accept.includes("video") ? <Video className="size-7" /> : <ImageIcon className="size-7" />}
                 <span className="text-sm font-semibold">{label}</span>
-                <span className="text-xs">Tıkla veya sürükle</span>
+                <span className="text-xs">{t.uploadHint}</span>
               </>
             )}
           </button>

@@ -1,11 +1,13 @@
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import { Trophy } from "lucide-react";
 import { Badge, LiveBadge } from "@/components/ui";
 import { VerifiedMark } from "@/components/ui/avatar";
 import { cld } from "@/lib/image";
 import { cn, initials } from "@/lib/utils";
-import { DISCIPLINE_LABEL, FIGHT_METHOD_LABEL } from "@/lib/constants";
+import { getDict, getLocale } from "@/lib/i18n/server";
+import { labelsFor, type Labels } from "@/lib/i18n/labels";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 import type { Corner as CornerEnum, Discipline, FightResultMethod, FightStatus, VerificationLevel } from "@prisma/client";
 
 export interface FightData {
@@ -32,24 +34,27 @@ export interface FightData {
   blue: { slug: string; avatarUrl: string | null; verification: VerificationLevel } | null;
 }
 
-export function FightCardList({ fights }: { fights: FightData[] }) {
+export async function FightCardList({ fights }: { fights: FightData[] }) {
+  const [locale, d] = await Promise.all([getLocale(), getDict()]);
+  const L = labelsFor(locale);
+
   if (!fights.length) {
     return (
       <p className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-10 text-center text-sm text-muted">
-        Dövüş kartı henüz açıklanmadı.
+        {d.fightCard.empty}
       </p>
     );
   }
   return (
     <div className="flex flex-col gap-3">
       {fights.map((f) => (
-        <FightRow key={f.id} f={f} />
+        <FightRow key={f.id} f={f} d={d} L={L} />
       ))}
     </div>
   );
 }
 
-function FightRow({ f }: { f: FightData }) {
+function FightRow({ f, d, L }: { f: FightData; d: Dictionary; L: Labels }) {
   const isLive = f.status === "LIVE";
   const done = f.status === "FINISHED";
 
@@ -61,18 +66,18 @@ function FightRow({ f }: { f: FightData }) {
       )}
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-2">
-        {f.isMainEvent && <Badge tone="gold">Ana Müsabaka</Badge>}
-        {f.isTitleFight && <Badge tone="red">Ünvan Maçı</Badge>}
-        <Badge>{DISCIPLINE_LABEL[f.discipline]}</Badge>
+        {f.isMainEvent && <Badge tone="gold">{d.fightCard.mainEvent}</Badge>}
+        {f.isTitleFight && <Badge tone="red">{d.fightCard.titleFight}</Badge>}
+        <Badge>{L.discipline[f.discipline]}</Badge>
         {f.weightClass && <span className="text-xs text-muted">{f.weightClass}</span>}
-        <span className="text-xs text-muted">{f.rounds} raunt</span>
+        <span className="text-xs text-muted">{f.rounds} {d.fightCard.rounds}</span>
         <span className="ml-auto">
           {isLive ? (
             <LiveBadge />
           ) : done ? (
-            <Badge tone="green">Bitti</Badge>
+            <Badge tone="green">{d.fightCard.finished}</Badge>
           ) : f.status === "CANCELLED" ? (
-            <Badge tone="neutral">İptal</Badge>
+            <Badge tone="neutral">{d.fightCard.cancelled}</Badge>
           ) : null}
         </span>
       </header>
@@ -95,10 +100,10 @@ function FightRow({ f }: { f: FightData }) {
       {done && f.method && (
         <footer className="border-t border-[var(--border)] bg-[var(--bg-subtle)] px-4 py-2 text-center text-xs">
           <span className="font-bold">
-            {f.winnerCorner === "RED" ? f.redName : f.winnerCorner === "BLUE" ? f.blueName : "Berabere"}
+            {f.winnerCorner === "RED" ? f.redName : f.winnerCorner === "BLUE" ? f.blueName : L.fightMethod.DRAW}
           </span>{" "}
           <span className="text-muted">
-            · {FIGHT_METHOD_LABEL[f.method]}
+            · {L.fightMethod[f.method]}
             {f.endRound ? ` · R${f.endRound}` : ""}
             {f.endTime ? ` ${f.endTime}` : ""}
           </span>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import { Pin, Lock, Eye, MessageSquare } from "lucide-react";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -10,6 +10,9 @@ import { Badge, Card, CardBody, Alert } from "@/components/ui";
 import { ReplyForm } from "@/components/reply-form";
 import { ReportButton } from "@/components/report-button";
 import { formatDateTime, timeAgo, compact, truncate } from "@/lib/utils";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { LOCALE_TAG } from "@/lib/i18n/config";
+import { forumCopy } from "@/lib/i18n/pages/forum";
 
 export const revalidate = 30;
 
@@ -52,18 +55,23 @@ async function loadThread(slug: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const t = await loadThread(slug);
-  if (!t) return { title: "Konu bulunamadı" };
+  const [t, locale] = await Promise.all([loadThread(slug), getLocale()]);
+  const c = forumCopy[locale].thread;
+  const alternates = await metadataAlternates(`/forum/${slug}`);
+  if (!t) return { title: c.notFound, alternates };
   return {
     title: t.title,
     description: truncate(t.body, 155),
+    alternates,
   };
 }
 
 export default async function ThreadPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const [t, session] = await Promise.all([loadThread(slug), getSession()]);
+  const [t, session, locale] = await Promise.all([loadThread(slug), getSession(), getLocale()]);
   if (!t) notFound();
+
+  const c = forumCopy[locale].thread;
 
   prisma.forumThread.update({ where: { id: t.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
@@ -71,7 +79,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
     <div className="mx-auto max-w-3xl px-4 py-6 pb-16 sm:px-6 sm:py-10">
       <nav className="mb-4 text-sm text-muted">
         <Link href="/forum" className="hover:text-blood-500">
-          Forum
+          {c.breadcrumb}
         </Link>
         {" / "}
         <Link href={`/forum?kategori=${t.category.slug}`} className="hover:text-blood-500">
@@ -80,8 +88,8 @@ export default async function ThreadPage({ params }: { params: Params }) {
       </nav>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {t.isPinned && <Badge tone="gold"><Pin className="size-3" /> Sabit</Badge>}
-        {t.isLocked && <Badge><Lock className="size-3" /> Kilitli</Badge>}
+        {t.isPinned && <Badge tone="gold"><Pin className="size-3" /> {c.pinned}</Badge>}
+        {t.isLocked && <Badge><Lock className="size-3" /> {c.locked}</Badge>}
         <span className="flex items-center gap-1 text-xs text-muted">
           <Eye className="size-3.5" /> {compact(t.viewCount)}
         </span>
@@ -113,7 +121,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
                 <VerifiedMark level={t.user.verification} />
                 {t.user.isFounder && <FounderMark />}
               </div>
-              <p className="text-xs text-muted">{formatDateTime(t.createdAt)}</p>
+              <p className="text-xs text-muted">{formatDateTime(t.createdAt, LOCALE_TAG[locale])}</p>
             </div>
             <ReportButton targetType="THREAD" targetId={t.id} reportedUserId={t.user.id} authed={!!session} compact />
           </div>
@@ -135,7 +143,7 @@ export default async function ThreadPage({ params }: { params: Params }) {
                         {p.user.name}
                       </Link>
                       <VerifiedMark level={p.user.verification} />
-                      <span className="ml-auto shrink-0 text-[11px] text-muted">{timeAgo(p.createdAt)}</span>
+                      <span className="ml-auto shrink-0 text-[11px] text-muted">{timeAgo(p.createdAt, locale)}</span>
                       <ReportButton targetType="FORUM_POST" targetId={p.id} reportedUserId={p.user.id} authed={!!session} compact />
                     </div>
                     <p className="mt-1 whitespace-pre-line break-words text-sm leading-relaxed">{p.body}</p>
@@ -150,8 +158,8 @@ export default async function ThreadPage({ params }: { params: Params }) {
       {/* Yanıt formu */}
       <div className="mt-6">
         {t.isLocked ? (
-          <Alert tone="neutral" title="Konu kilitli">
-            Bu konuya yeni yanıt eklenemez.
+          <Alert tone="neutral" title={c.lockedTitle}>
+            {c.lockedBody}
           </Alert>
         ) : session ? (
           <Card>
@@ -161,9 +169,9 @@ export default async function ThreadPage({ params }: { params: Params }) {
           </Card>
         ) : (
           <Alert tone="blue">
-            Yanıt vermek için{" "}
+            {c.replyLead}{" "}
             <Link href="/giris" className="font-bold underline">
-              giriş yap
+              {c.replyLink}
             </Link>
           </Alert>
         )}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { Link } from "@/components/i18n/link";
 import Image from "next/image";
 import prisma from "@/lib/prisma";
 import { safe } from "@/lib/queries";
@@ -12,7 +12,9 @@ import { ReportButton } from "@/components/report-button";
 import { VideoPlayer } from "@/components/video-player";
 import { cld } from "@/lib/image";
 import { timeAgo, truncate } from "@/lib/utils";
-import { DISCIPLINE_LABEL } from "@/lib/constants";
+import { getLocale, metadataAlternates } from "@/lib/i18n/server";
+import { labelsFor } from "@/lib/i18n/labels";
+import { feedCopy } from "@/lib/i18n/pages/feed";
 
 type Params = Promise<{ id: string }>;
 
@@ -50,19 +52,25 @@ async function loadPost(id: string) {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const p = await loadPost(id);
-  if (!p) return { title: "Gönderi bulunamadı" };
+  const [p, locale] = await Promise.all([loadPost(id), getLocale()]);
+  const c = feedCopy[locale].detail;
+  const alternates = await metadataAlternates(`/akis/${id}`);
+  if (!p) return { title: c.notFound, alternates };
   return {
-    title: `${p.user.name} — ${p.body ? truncate(p.body, 50) : "Gönderi"}`,
-    description: p.body?.slice(0, 155) ?? `${p.user.name} tarafından paylaşıldı`,
+    title: `${p.user.name} — ${p.body ? truncate(p.body, 50) : c.post}`,
+    description: p.body?.slice(0, 155) ?? c.sharedBy.replace("{name}", p.user.name),
+    alternates,
     openGraph: { images: p.thumbUrl || p.mediaUrl ? [{ url: cld(p.thumbUrl ?? p.mediaUrl!, { w: 1200 }) }] : undefined },
   };
 }
 
 export default async function PostPage({ params }: { params: Params }) {
   const { id } = await params;
-  const [p, session] = await Promise.all([loadPost(id), getSession()]);
+  const [p, session, locale] = await Promise.all([loadPost(id), getSession(), getLocale()]);
   if (!p) notFound();
+
+  const c = feedCopy[locale].detail;
+  const L = labelsFor(locale);
 
   const liked = session
     ? await safe(
@@ -90,7 +98,7 @@ export default async function PostPage({ params }: { params: Params }) {
               <VerifiedMark level={p.user.verification} />
             </div>
             <p className="text-xs text-muted">
-              @{p.user.username} · {timeAgo(p.createdAt)}
+              @{p.user.username} · {timeAgo(p.createdAt, locale)}
             </p>
           </div>
           <ReportButton targetType="POST" targetId={p.id} reportedUserId={p.user.id} authed={!!session} compact />
@@ -104,7 +112,7 @@ export default async function PostPage({ params }: { params: Params }) {
           <div className="relative aspect-square bg-ink-900">
             <Image
               src={cld(p.mediaUrl, { w: 1080 })}
-              alt={p.body ? truncate(p.body, 60) : "Gönderi"}
+              alt={p.body ? truncate(p.body, 60) : c.post}
               fill
               priority
               sizes="(max-width: 768px) 100vw, 768px"
@@ -117,7 +125,7 @@ export default async function PostPage({ params }: { params: Params }) {
           {p.body && <p className="whitespace-pre-line text-sm leading-relaxed">{p.body}</p>}
 
           <div className="flex flex-wrap gap-1.5">
-            {p.discipline && <Badge tone="red">{DISCIPLINE_LABEL[p.discipline]}</Badge>}
+            {p.discipline && <Badge tone="red">{L.discipline[p.discipline]}</Badge>}
             {p.tags.map((t) => (
               <Link key={t} href={`/akis?q=${encodeURIComponent(t)}`}>
                 <Badge>#{t}</Badge>

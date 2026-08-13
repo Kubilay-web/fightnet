@@ -10,6 +10,7 @@ import { notify, audit } from "@/lib/notify";
 import { calcStreak, profileCompletion, slugify } from "@/lib/utils";
 import { MAX_VOUCHES_PER_COACH } from "@/lib/constants";
 import { requestGuardianConsent, isRestrictedMinor } from "@/lib/guardian";
+import { moderate, attachResult } from "@/lib/moderation";
 import {
   profileSchema, sportProfileSchema, trainingSchema, sparringListingSchema,
   sparringReviewSchema, verificationSchema, passportDocSchema, creatorTierSchema,
@@ -543,7 +544,20 @@ export async function createPost(_prev: ActionState, fd: FormData): Promise<Acti
   if (d.type !== "TEXT" && !d.mediaUrl) return { error: "Medya yüklemelisin" };
   if (d.type === "TEXT" && !d.body) return { error: "Metin boş olamaz" };
 
-  await prisma.post.create({
+  // §11.3 — Otomatik ön filtre. Metin Perspective/yerel sözlükten, görsel ve
+  // video poster karesi Rekognition'dan geçer. Video onaylansa bile insan
+  // incelemesine düşer (PENDING) — topluluk kurallarında verilen taahhüt bu.
+  const decision = await moderate({
+    targetType: "POST",
+    userId: user.id,
+    kind: d.type,
+    text: [d.body, (d.tags as string[]).join(" ")].filter(Boolean).join(" "),
+    imageUrl: d.type === "VIDEO" ? d.thumbUrl : d.mediaUrl,
+  });
+
+  if (decision.state === "REMOVED") return { error: decision.message ?? "İçerik yayınlanamadı" };
+
+  const post = await prisma.post.create({
     data: {
       userId: user.id,
       type: d.type,
@@ -555,10 +569,13 @@ export async function createPost(_prev: ActionState, fd: FormData): Promise<Acti
       discipline: (d.discipline || null) as never,
       tags: d.tags as string[],
       visibility: d.visibility,
-      // §11.3 — Video içerik otomatik ön filtre kuyruğuna girer
-      moderation: d.type === "VIDEO" ? "PENDING" : "APPROVED",
+      moderation: decision.state,
+      moderationNote: decision.labels.length ? decision.labels.join(", ") : null,
     },
+    select: { id: true },
   });
+
+  await attachResult({ targetType: "POST", targetId: post.id, decision });
 
   await prisma.user.update({ where: { id: user.id }, data: { postCount: { increment: 1 } } });
   updateTag(CACHE_TAGS.posts);
